@@ -1,60 +1,80 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Heart, MapPin, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
+interface Listing {
+  id: string;
+  title: string;
+  price: number;
+  images: string[];
+  location: string;
+  sellerName: string;
+  condition: string;
+  category: string;
+}
+
 const FeaturedItems = () => {
-  const items = [
-    {
-      id: 1,
-      title: "MacBook Pro 13\" 2022",
-      price: 1200,
-      image: "/placeholder.svg",
-      location: "Campus North",
-      distance: "0.3 miles",
-      seller: "Sarah M.",
-      rating: 4.8,
-      condition: "Like New",
-      category: "Electronics"
-    },
-    {
-      id: 2,
-      title: "Vintage Leather Jacket",
-      price: 80,
-      image: "/placeholder.svg",
-      location: "Downtown",
-      distance: "0.8 miles",
-      seller: "Mike R.",
-      rating: 4.9,
-      condition: "Good",
-      category: "Fashion"
-    },
-    {
-      id: 3,
-      title: "Study Desk & Chair Set",
-      price: 150,
-      image: "/placeholder.svg",
-      location: "Dorm Complex",
-      distance: "0.1 miles",
-      seller: "Emma K.",
-      rating: 5.0,
-      condition: "Excellent",
-      category: "Furniture"
-    },
-    {
-      id: 4,
-      title: "Guitar - Acoustic",
-      price: 250,
-      image: "/placeholder.svg",
-      location: "Music Hall",
-      distance: "0.5 miles",
-      seller: "David L.",
-      rating: 4.7,
-      condition: "Good",
-      category: "Music"
+  const navigate = useNavigate();
+  const [featuredItems, setFeaturedItems] = useState<Listing[]>([]);
+
+  useEffect(() => {
+    // Get listings from localStorage, or use default items if none exist
+    const savedListings = JSON.parse(localStorage.getItem('nexlify-listings') || '[]');
+    
+    if (savedListings.length > 0) {
+      // Show the 4 most recent listings
+      const recentListings = savedListings.slice(-4).reverse();
+      setFeaturedItems(recentListings);
+    } else {
+      // Default placeholder items
+      const defaultItems = [
+        {
+          id: 'default-1',
+          title: "MacBook Pro 13\" 2022",
+          price: 1200,
+          images: ["/placeholder.svg"],
+          location: "Campus North",
+          sellerName: "Sarah M.",
+          condition: "Like New",
+          category: "Electronics"
+        },
+        {
+          id: 'default-2',
+          title: "Vintage Leather Jacket",
+          price: 80,
+          images: ["/placeholder.svg"],
+          location: "Downtown",
+          sellerName: "Mike R.",
+          condition: "Good",
+          category: "Fashion"
+        },
+        {
+          id: 'default-3',
+          title: "Study Desk & Chair Set",
+          price: 150,
+          images: ["/placeholder.svg"],
+          location: "Dorm Complex",
+          sellerName: "Emma K.",
+          condition: "Excellent",
+          category: "Furniture"
+        },
+        {
+          id: 'default-4',
+          title: "Guitar - Acoustic",
+          price: 250,
+          images: ["/placeholder.svg"],
+          location: "Music Hall",
+          sellerName: "David L.",
+          condition: "Good",
+          category: "Music"
+        }
+      ];
+      setFeaturedItems(defaultItems);
     }
-  ];
+  }, []);
 
   return (
     <div className="py-12 bg-white">
@@ -69,11 +89,11 @@ const FeaturedItems = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {items.map((item) => (
+          {featuredItems.map((item) => (
             <div key={item.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-100">
               <div className="relative">
                 <img 
-                  src={item.image} 
+                  src={item.images[0] || "/placeholder.svg"} 
                   alt={item.title}
                   className="w-full h-48 object-cover"
                 />
@@ -101,25 +121,35 @@ const FeaturedItems = () => {
                 
                 <div className="flex items-center text-gray-600 text-sm mb-3">
                   <MapPin size={14} className="mr-1" />
-                  <span>{item.location} • {item.distance}</span>
+                  <span>{item.location}</span>
                 </div>
                 
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center">
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {item.seller.charAt(0)}
+                      {item.sellerName.charAt(0)}
                     </div>
-                    <span className="ml-2 text-sm text-gray-700">{item.seller}</span>
+                    <span className="ml-2 text-sm text-gray-700">{item.sellerName}</span>
                   </div>
                   <div className="flex items-center">
                     <Star size={14} className="text-yellow-400 fill-current" />
-                    <span className="ml-1 text-sm text-gray-600">{item.rating}</span>
+                    <span className="ml-1 text-sm text-gray-600">4.8</span>
                   </div>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <Badge variant="secondary" className="text-xs">{item.category}</Badge>
-                  <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm">
+                  <Button 
+                    size="sm" 
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm"
+                    onClick={() => {
+                      if (item.id.startsWith('default-')) {
+                        navigate('/marketplace');
+                      } else {
+                        navigate(`/listing/${item.id}`);
+                      }
+                    }}
+                  >
                     View Details
                   </Button>
                 </div>
@@ -129,7 +159,12 @@ const FeaturedItems = () => {
         </div>
 
         <div className="text-center mt-8">
-          <Button size="lg" variant="outline" className="px-8">
+          <Button 
+            size="lg" 
+            variant="outline" 
+            className="px-8"
+            onClick={() => navigate('/marketplace')}
+          >
             View All Items
           </Button>
         </div>
