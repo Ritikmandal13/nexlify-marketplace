@@ -1,73 +1,85 @@
-# Welcome to your Lovable project
+# Nexlify Marketplace
 
-## Project info
+A modern, India-centric marketplace app built with React, Vite, TypeScript, Supabase, and Tailwind CSS. Users can buy and sell locally, manage profiles, and enjoy a PWA experience with offline support.
 
-**URL**: https://lovable.dev/projects/733fd2c8-5074-4128-8eb5-a8d7b383663b
+---
 
-## How can I edit this code?
+## Features
+- User authentication (email sign-up, email verification)
+- User profiles (with avatar, bio, university, etc.)
+- List items for sale with images
+- Real-time chat between buyers and sellers
+- Progressive Web App (PWA): installable, offline support
+- Supabase as backend (database, auth, storage)
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## Technologies Used
+- [Vite](https://vitejs.dev/) (React + TypeScript)
+- [Supabase](https://supabase.com/) (Database, Auth, Storage)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/733fd2c8-5074-4128-8eb5-a8d7b383663b) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+### 1. Clone the Repository
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+git clone https://github.com/Ritikmandal13/nexlify-marketplace.git
+cd nexlify-marketplace
 ```
 
-**Edit a file directly in GitHub**
+### 2. Install Dependencies
+```sh
+npm install
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 3. Set Up Environment Variables
+- Copy `.env.example` to `.env` and fill in your Supabase project credentials:
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
 
-**Use GitHub Codespaces**
+### 4. Start the Development Server
+```sh
+npm run dev
+```
+- The app will run at `http://localhost:8080` (or as shown in your terminal).
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
+## Deployment (Vercel)
+1. Push your code to GitHub.
+2. Go to [Vercel](https://vercel.com/) and import your repo.
+3. Use these settings:
+   - **Install Command:** `npm install`
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+4. Set your environment variables in Vercel dashboard.
+5. Deploy and get your live URL!
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Supabase Setup
+- Create a Supabase project at [supabase.com](https://supabase.com/).
+- Set up tables: `users`, `listings`, `messages`, etc.
+- Set up Storage buckets (e.g., `Avatars`, `listing-images`).
+- Configure Auth settings (Site URL = your Vercel URL).
+- Add RLS policies for security.
+- (Optional) Add triggers for automatic profile creation.
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/733fd2c8-5074-4128-8eb5-a8d7b383663b) and click on Share -> Publish.
+## PWA Features
+- Manifest and service worker included for installability and offline support.
+- To test PWA: open in Chrome, go to Application tab, and install from the address bar.
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
+## Contributing
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+---
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## License
+[MIT](LICENSE)
