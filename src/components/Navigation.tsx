@@ -1,30 +1,30 @@
-
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, MessageCircle, User, Menu, X } from 'lucide-react';
+import { Search, MapPin, MessageCircle, User, Menu, X, Plus, Home, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import AuthModal from '@/components/auth/AuthModal';
+import { Link, useNavigate } from 'react-router-dom';
 import UserProfile from '@/components/auth/UserProfile';
+import { supabase } from '@/lib/supabaseClient';
+import { AuthUser } from '@/types/user';
 
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user is logged in
-    const userData = localStorage.getItem('nexlify-user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
   }, []);
-
-  const handleAuthClick = (mode: 'signin' | 'signup') => {
-    setAuthMode(mode);
-    setIsAuthModalOpen(true);
-    setIsMenuOpen(false);
-  };
 
   const handleProfileClick = () => {
     setIsProfileOpen(true);
@@ -51,13 +51,13 @@ const Navigation = () => {
               <a href="#sell" className="text-gray-700 hover:text-blue-600 transition-colors">
                 Sell
               </a>
-              <a href="#messages" className="text-gray-700 hover:text-blue-600 transition-colors">
-                Messages
-              </a>
-              
+              <Link to="/chats" className="text-gray-700 hover:text-blue-600 transition-colors flex items-center gap-1">
+                <MessageCircle size={18} />
+                Chat
+              </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
-                  <span className="text-gray-700">Hi, {user.name.split(' ')[0]}</span>
+                  <span className="text-gray-700">Hi, {(user.user_metadata?.full_name || user.email || '').split(' ')[0]}</span>
                   <Button 
                     variant="outline" 
                     className="flex items-center gap-2"
@@ -69,20 +69,22 @@ const Navigation = () => {
                 </div>
               ) : (
                 <>
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center gap-2"
-                    onClick={() => handleAuthClick('signin')}
-                  >
-                    <User size={16} />
-                    Sign In
-                  </Button>
-                  <Button 
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    onClick={() => handleAuthClick('signup')}
-                  >
-                    Join Nexlify
-                  </Button>
+                  <Link to="/signin">
+                    <Button 
+                      variant="outline" 
+                      className="flex items-center gap-2"
+                    >
+                      <User size={16} />
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link to="/signup">
+                    <Button 
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                    >
+                      Join Nexlify
+                    </Button>
+                  </Link>
                 </>
               )}
             </div>
@@ -109,14 +111,14 @@ const Navigation = () => {
                 <a href="#sell" className="text-gray-700 hover:text-blue-600 transition-colors">
                   Sell
                 </a>
-                <a href="#messages" className="text-gray-700 hover:text-blue-600 transition-colors">
-                  Messages
-                </a>
-                
+                <Link to="/chats" className="text-gray-700 hover:text-blue-600 transition-colors flex items-center gap-1">
+                  <MessageCircle size={18} />
+                  Chat
+                </Link>
                 {user ? (
                   <>
                     <div className="text-gray-700 py-2 border-t">
-                      Hi, {user.name.split(' ')[0]}
+                      Hi, {(user.user_metadata?.full_name || user.email || '').split(' ')[0]}
                     </div>
                     <Button 
                       variant="outline" 
@@ -128,19 +130,21 @@ const Navigation = () => {
                   </>
                 ) : (
                   <>
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => handleAuthClick('signin')}
-                    >
-                      Sign In
-                    </Button>
-                    <Button 
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
-                      onClick={() => handleAuthClick('signup')}
-                    >
-                      Join Nexlify
-                    </Button>
+                    <Link to="/signin">
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                      >
+                        Sign In
+                      </Button>
+                    </Link>
+                    <Link to="/signup">
+                      <Button 
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+                      >
+                        Join Nexlify
+                      </Button>
+                    </Link>
                   </>
                 )}
               </div>
@@ -149,17 +153,33 @@ const Navigation = () => {
         </div>
 
         {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
-          <div className="flex justify-around items-center">
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1">
-              <Search size={20} />
-              <span className="text-xs">Search</span>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 z-40">
+          <div className="flex justify-around items-center relative">
+            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1" onClick={() => navigate('/') }>
+              <Home size={20} />
+              <span className="text-xs">Home</span>
             </Button>
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1">
-              <MapPin size={20} />
-              <span className="text-xs">Map</span>
+            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1" onClick={() => navigate('/marketplace') }>
+              <ShoppingBag size={20} />
+              <span className="text-xs">Market</span>
             </Button>
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1">
+            {/* Floating Sell Button (FAB) for mobile */}
+            {user && (
+              <button
+                className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg p-3 hover:scale-105 transition-transform flex items-center justify-center border-4 border-white z-50"
+                onClick={() => navigate('/create-listing')}
+                aria-label="Sell Item"
+                style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
+              >
+                <Plus size={22} />
+              </button>
+            )}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex flex-col items-center gap-1"
+              onClick={() => navigate('/chats')}
+            >
               <MessageCircle size={20} />
               <span className="text-xs">Chat</span>
             </Button>
@@ -167,7 +187,7 @@ const Navigation = () => {
               variant="ghost" 
               size="sm" 
               className="flex flex-col items-center gap-1"
-              onClick={user ? handleProfileClick : () => handleAuthClick('signin')}
+              onClick={user ? handleProfileClick : undefined}
             >
               <User size={20} />
               <span className="text-xs">Profile</span>
@@ -176,17 +196,21 @@ const Navigation = () => {
         </div>
       </nav>
 
-      {/* Modals */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        initialMode={authMode}
-      />
-      
       <UserProfile
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
       />
+
+      {/* Floating Sell Button (FAB) for desktop */}
+      {user && (
+        <button
+          className="hidden md:flex fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg p-4 hover:scale-105 transition-transform items-center justify-center"
+          onClick={() => navigate('/create-listing')}
+          aria-label="Sell Item"
+        >
+          <Plus size={28} />
+        </button>
+      )}
     </>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, MapPin, Star, Heart, MessageCircle, Share } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabaseClient';
 
 interface Listing {
   id: string;
@@ -16,10 +16,10 @@ interface Listing {
   condition: string;
   location: string;
   images: string[];
-  sellerId: string;
-  sellerName: string;
-  createdAt: string;
-  status: string;
+  seller_id: string;
+  seller_name: string;
+  created_at: string;
+  status?: string;
 }
 
 const ListingDetail = () => {
@@ -30,9 +30,16 @@ const ListingDetail = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    const savedListings = JSON.parse(localStorage.getItem('nexlify-listings') || '[]');
-    const foundListing = savedListings.find((l: Listing) => l.id === id);
-    setListing(foundListing || null);
+    const fetchListing = async () => {
+      if (!id) return;
+      const { data, error } = await supabase.from('listings').select('*').eq('id', id).single();
+      if (error) {
+        setListing(null);
+      } else {
+        setListing(data);
+      }
+    };
+    fetchListing();
   }, [id]);
 
   if (!listing) {
@@ -48,21 +55,47 @@ const ListingDetail = () => {
     );
   }
 
-  const handleContactSeller = () => {
-    const user = localStorage.getItem('nexlify-user');
+  const handleMessageSeller = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast({
-        title: "Sign in required",
-        description: "Please sign in to contact the seller.",
-        variant: "destructive"
+        title: 'Sign in required',
+        description: 'Please sign in to contact the seller.',
+        variant: 'destructive',
       });
       return;
     }
-    
-    toast({
-      title: "Message sent!",
-      description: "Your message has been sent to the seller.",
-    });
+    if (!listing) return;
+    // Check if a chat already exists between these two users for this product
+    const { data: existingChats, error } = await supabase
+      .from('chats')
+      .select('*')
+      .contains('user_ids', [user.id, listing.seller_id])
+      .eq('product_id', listing.id);
+    let chatId;
+    if (existingChats && existingChats.length > 0) {
+      chatId = existingChats[0].id;
+    } else {
+      // Create a new chat with product context
+      const { data: newChat, error: chatError } = await supabase
+        .from('chats')
+        .insert({ 
+          user_ids: [user.id, listing.seller_id],
+          product_id: listing.id
+        })
+        .select()
+        .single();
+      if (chatError || !newChat) {
+        toast({
+          title: 'Error',
+          description: 'Could not start chat.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      chatId = newChat.id;
+    }
+    navigate(`/chat/${chatId}`);
   };
 
   const handleAddToFavorites = () => {
@@ -142,7 +175,7 @@ const ListingDetail = () => {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">${listing.price}</div>
+                <div className="text-3xl font-bold text-blue-600">₹{listing.price.toLocaleString('en-IN')}</div>
               </div>
             </div>
 
@@ -163,10 +196,10 @@ const ListingDetail = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
-                      {listing.sellerName.charAt(0)}
+                      {(listing.seller_name || 'U').charAt(0)}
                     </div>
                     <div className="ml-3">
-                      <div className="font-medium">{listing.sellerName}</div>
+                      <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
                       <div className="flex items-center text-sm text-gray-600">
                         <Star size={14} className="text-yellow-400 fill-current mr-1" />
                         4.8 (23 reviews)
@@ -180,12 +213,12 @@ const ListingDetail = () => {
             {/* Action Buttons */}
             <div className="space-y-3">
               <Button 
-                onClick={handleContactSeller} 
+                onClick={handleMessageSeller} 
                 className="w-full bg-blue-600 hover:bg-blue-700"
                 size="lg"
               >
                 <MessageCircle size={16} className="mr-2" />
-                Contact Seller
+                Message Seller
               </Button>
               
               <div className="flex space-x-3">
@@ -205,7 +238,7 @@ const ListingDetail = () => {
             </div>
 
             <div className="mt-6 text-sm text-gray-500">
-              Posted {new Date(listing.createdAt).toLocaleDateString()}
+              Posted {new Date(listing.created_at).toLocaleDateString()}
             </div>
           </div>
         </div>

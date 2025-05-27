@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MapPin, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/lib/supabaseClient';
 
 interface Listing {
   id: string;
@@ -11,7 +11,7 @@ interface Listing {
   price: number;
   images: string[];
   location: string;
-  sellerName: string;
+  seller_name: string;
   condition: string;
   category: string;
 }
@@ -21,59 +21,17 @@ const FeaturedItems = () => {
   const [featuredItems, setFeaturedItems] = useState<Listing[]>([]);
 
   useEffect(() => {
-    // Get listings from localStorage, or use default items if none exist
-    const savedListings = JSON.parse(localStorage.getItem('nexlify-listings') || '[]');
-    
-    if (savedListings.length > 0) {
-      // Show the 4 most recent listings
-      const recentListings = savedListings.slice(-4).reverse();
-      setFeaturedItems(recentListings);
-    } else {
-      // Default placeholder items
-      const defaultItems = [
-        {
-          id: 'default-1',
-          title: "MacBook Pro 13\" 2022",
-          price: 1200,
-          images: ["/placeholder.svg"],
-          location: "Campus North",
-          sellerName: "Sarah M.",
-          condition: "Like New",
-          category: "Electronics"
-        },
-        {
-          id: 'default-2',
-          title: "Vintage Leather Jacket",
-          price: 80,
-          images: ["/placeholder.svg"],
-          location: "Downtown",
-          sellerName: "Mike R.",
-          condition: "Good",
-          category: "Fashion"
-        },
-        {
-          id: 'default-3',
-          title: "Study Desk & Chair Set",
-          price: 150,
-          images: ["/placeholder.svg"],
-          location: "Dorm Complex",
-          sellerName: "Emma K.",
-          condition: "Excellent",
-          category: "Furniture"
-        },
-        {
-          id: 'default-4',
-          title: "Guitar - Acoustic",
-          price: 250,
-          images: ["/placeholder.svg"],
-          location: "Music Hall",
-          sellerName: "David L.",
-          condition: "Good",
-          category: "Music"
-        }
-      ];
-      setFeaturedItems(defaultItems);
-    }
+    // Fetch latest 4 listings from Supabase
+    const fetchFeatured = async () => {
+      const { data, error } = await supabase.from('listings').select('*').order('created_at', { ascending: false }).limit(4);
+      if (error) {
+        console.error('Error fetching featured items:', error.message);
+        setFeaturedItems([]);
+      } else {
+        setFeaturedItems(data || []);
+      }
+    };
+    fetchFeatured();
   }, []);
 
   return (
@@ -89,73 +47,79 @@ const FeaturedItems = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {featuredItems.map((item) => (
-            <div key={item.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-100">
-              <div className="relative">
-                <img 
-                  src={item.images[0] || "/placeholder.svg"} 
-                  alt={item.title}
-                  className="w-full h-48 object-cover"
-                />
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                >
-                  <Heart size={16} />
-                </Button>
-                <Badge className="absolute top-2 left-2 bg-green-500 text-white">
-                  {item.condition}
-                </Badge>
-              </div>
-              
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-lg text-gray-900 flex-1 mr-2">
-                    {item.title}
-                  </h3>
-                  <span className="text-xl font-bold text-blue-600">
-                    ${item.price}
-                  </span>
-                </div>
-                
-                <div className="flex items-center text-gray-600 text-sm mb-3">
-                  <MapPin size={14} className="mr-1" />
-                  <span>{item.location}</span>
-                </div>
-                
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {item.sellerName.charAt(0)}
-                    </div>
-                    <span className="ml-2 text-sm text-gray-700">{item.sellerName}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Star size={14} className="text-yellow-400 fill-current" />
-                    <span className="ml-1 text-sm text-gray-600">4.8</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="text-xs">{item.category}</Badge>
-                  <Button 
-                    size="sm" 
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm"
-                    onClick={() => {
-                      if (item.id.startsWith('default-')) {
-                        navigate('/marketplace');
-                      } else {
-                        navigate(`/listing/${item.id}`);
-                      }
-                    }}
-                  >
-                    View Details
-                  </Button>
-                </div>
-              </div>
+          {featuredItems.length === 0 ? (
+            <div className="text-center text-gray-500 col-span-2 py-12">
+              No featured items yet.
             </div>
-          ))}
+          ) : (
+            featuredItems.map((item) => (
+              <div key={item.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-100">
+                <div className="relative">
+                  <img 
+                    src={item.images[0] || "/placeholder.svg"} 
+                    alt={item.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                  >
+                    <Heart size={16} />
+                  </Button>
+                  <Badge className="absolute top-2 left-2 bg-green-500 text-white">
+                    {item.condition}
+                  </Badge>
+                </div>
+                
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-semibold text-lg text-gray-900 flex-1 mr-2">
+                      {item.title}
+                    </h3>
+                    <span className="text-xl font-bold text-blue-600">
+                      ₹{item.price.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center text-gray-600 text-sm mb-3">
+                    <MapPin size={14} className="mr-1" />
+                    <span>{item.location}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        {(item.seller_name || 'U').charAt(0)}
+                      </div>
+                      <span className="ml-2 text-sm text-gray-700">{item.seller_name || 'Unknown'}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Star size={14} className="text-yellow-400 fill-current" />
+                      <span className="ml-1 text-sm text-gray-600">4.8</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="text-xs">{item.category}</Badge>
+                    <Button 
+                      size="sm" 
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm"
+                      onClick={() => {
+                        if (item.id.startsWith('default-')) {
+                          navigate('/marketplace');
+                        } else {
+                          navigate(`/listing/${item.id}`);
+                        }
+                      }}
+                    >
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         <div className="text-center mt-8">

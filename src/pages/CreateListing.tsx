@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,8 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Camera, DollarSign } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ListingFormData {
   title: string;
@@ -23,7 +23,8 @@ const CreateListing = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  
+  const [uploading, setUploading] = useState(false);
+
   const form = useForm<ListingFormData>({
     defaultValues: {
       title: '',
@@ -65,8 +66,19 @@ const CreateListing = () => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const onSubmit = (data: ListingFormData) => {
-    const user = localStorage.getItem('nexlify-user');
+  // Helper to upload a single image to Supabase Storage
+  const uploadImageToSupabase = async (file: File, userId: string) => {
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+    const { data, error } = await supabase.storage.from('listing-images').upload(filePath, file);
+    if (error) throw error;
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage.from('listing-images').getPublicUrl(filePath);
+    return publicUrlData.publicUrl;
+  };
+
+  const onSubmit = async (data: ListingFormData) => {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -75,28 +87,42 @@ const CreateListing = () => {
       });
       return;
     }
-
-    const userData = JSON.parse(user);
-    const listing = {
-      id: Date.now().toString(),
-      ...data,
-      images: selectedImages.map(file => URL.createObjectURL(file)),
-      sellerId: userData.id,
-      sellerName: userData.name,
-      createdAt: new Date().toISOString(),
-      status: 'active'
-    };
-
-    // Save to localStorage (in real app, this would go to a backend)
-    const existingListings = JSON.parse(localStorage.getItem('nexlify-listings') || '[]');
-    localStorage.setItem('nexlify-listings', JSON.stringify([...existingListings, listing]));
-
-    toast({
-      title: "Listing Created!",
-      description: "Your item has been listed successfully.",
-    });
-
-    navigate('/');
+    setUploading(true);
+    try {
+      // Upload all images to Supabase Storage
+      const imageUrls: string[] = [];
+      for (const file of selectedImages) {
+        const url = await uploadImageToSupabase(file, user.id);
+        imageUrls.push(url);
+      }
+      // Insert listing into Supabase
+      const { error } = await supabase.from('listings').insert({
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        category: data.category,
+        condition: data.condition,
+        location: data.location,
+        images: imageUrls,
+        seller_id: user.id,
+        seller_name: user.user_metadata?.full_name || user.email,
+        seller_email: user.email,
+      });
+      if (error) throw error;
+      toast({
+        title: "Listing Created!",
+        description: "Your item has been listed successfully.",
+      });
+      navigate('/marketplace');
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to create listing.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -201,13 +227,13 @@ const CreateListing = () => {
                     }}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Price</FormLabel>
+                        <FormLabel>Price (INR)</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <DollarSign className="absolute left-3 top-3 text-gray-400" size={16} />
+                            <span className="absolute left-3 top-3 text-gray-400 font-bold">₹</span>
                             <Input 
                               type="number" 
-                              placeholder="0.00"
+                              placeholder="0"
                               className="pl-8"
                               {...field}
                               onChange={(e) => field.onChange(Number(e.target.value))}
@@ -282,8 +308,8 @@ const CreateListing = () => {
                 </div>
 
                 <div className="flex space-x-4">
-                  <Button type="submit" className="flex-1">
-                    Create Listing
+                  <Button type="submit" className="flex-1" disabled={uploading}>
+                    {uploading ? 'Uploading...' : 'Create Listing'}
                   </Button>
                   <Button 
                     type="button" 
