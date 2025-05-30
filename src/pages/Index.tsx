@@ -49,23 +49,46 @@ const Index = () => {
     checkNewUser();
   }, []);
 
+  // PWA Install Prompt
   useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowPwaPrompt(true);
+    const handler = (e: Event) => {
+      // Only prevent default if the event is available
+      if (e) {
+        e.preventDefault();
+        setDeferredPrompt(e as any);
+        setShowPwaPrompt(true);
+      }
     };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+
+    // Check if the event is supported
+    if ('beforeinstallprompt' in window) {
+      window.addEventListener('beforeinstallprompt', handler);
+    }
+
+    return () => {
+      if ('beforeinstallprompt' in window) {
+        window.removeEventListener('beforeinstallprompt', handler);
+      }
+    };
   }, []);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setShowPwaPrompt(false);
-      }
+    if (!deferredPrompt) {
+      console.log('Install prompt not available');
+      return;
+    }
+
+    try {
+      // Show the install prompt
+      const result = await (deferredPrompt as any).prompt();
+      console.log('Install prompt result:', result);
+      
+      // Reset the deferred prompt
+      setDeferredPrompt(null);
+      setShowPwaPrompt(false);
+    } catch (error) {
+      console.error('Error showing install prompt:', error);
+      setShowPwaPrompt(false);
     }
   };
 
