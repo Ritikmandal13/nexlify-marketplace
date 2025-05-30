@@ -222,16 +222,16 @@ const Navigation = () => {
                       </>
                     ) : (
                       <Button
-                        variant="ghost"
-                        className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                        onClick={() => {
-                          navigate('/login');
-                          closeMenu();
-                        }}
-                      >
-                        <User size={20} className="mr-2" />
-                        Sign In
-                      </Button>
+  variant="ghost"
+  className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
+  onClick={() => {
+    navigate('/signin');
+    closeMenu();
+  }}
+>
+  <User size={20} className="mr-2" />
+  Sign In
+</Button>
                     )}
                   </div>
                 </div>

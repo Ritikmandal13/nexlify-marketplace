@@ -72,7 +72,7 @@ const ChatDetail = () => {
           description: "Please sign in to access chat.",
           variant: "destructive"
         });
-        navigate('/login');
+        navigate('/signin');
         return;
       }
       setCurrentUser(user);
