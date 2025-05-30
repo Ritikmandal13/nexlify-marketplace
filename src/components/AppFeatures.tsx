@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Shield, Zap, Heart, Star, MessageCircle, MapPin } from 'lucide-react';
 
@@ -37,25 +36,25 @@ const AppFeatures = () => {
   ];
 
   return (
-    <div className="py-12 bg-white">
+    <div className="py-12 bg-background">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-10">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
             Why Choose Nexlify?
           </h2>
-          <p className="text-base text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base text-muted-foreground max-w-2xl mx-auto">
             Built specifically for campus and local community trading with features that matter
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => (
-            <div key={index} className="text-center p-6 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <feature.icon className="text-white" size={24} />
+            <div key={index} className="text-center p-6 rounded-lg hover:bg-accent transition-colors">
+              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <feature.icon className="text-primary-foreground" size={24} />
               </div>
-              <h3 className="text-lg font-semibold mb-2 text-gray-900">{feature.title}</h3>
-              <p className="text-sm text-gray-600">{feature.description}</p>
+              <h3 className="text-lg font-semibold mb-2 text-foreground">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground">{feature.description}</p>
             </div>
           ))}
         </div>

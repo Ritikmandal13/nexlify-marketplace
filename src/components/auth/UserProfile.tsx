@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import { User, AuthUser } from '@/types/user';
+import { useNavigate } from 'react-router-dom';
 
 interface UserProfileProps {
   isOpen: boolean;
@@ -22,49 +23,130 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   const [bio, setBio] = useState('');
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Always fetch latest user and profile info when modal opens
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        setUser(authUser as AuthUser);
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, email, full_name, avatar_url, university, bio, created_at, updated_at')
-          .eq('id', authUser.id)
-          .single();
-        
-        if (error) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to fetch user data",
-          });
-          return;
-        }
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          setUser(authUser as AuthUser);
+          
+          // Try to fetch user profile
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url, university, bio')
+            .eq('id', authUser.id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching user data:', error);
+            
+            // If profile doesn't exist, create it
+            if (error.code === 'PGRST116') {
+              const { error: createError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: authUser.id,
+                  full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0],
+                });
+              
+              if (createError) {
+                console.error('Error creating user profile:', createError);
+                toast({
+                  variant: "destructive",
+                  title: "Error",
+                  description: "Failed to create user profile",
+                });
+                return;
+              }
+              
+              // Retry fetching the profile
+              const { data: retryData, error: retryError } = await supabase
+                .from('profiles')
+                .select('id, full_name, avatar_url, university, bio')
+                .eq('id', authUser.id)
+                .single();
+              
+              if (retryError) {
+                console.error('Error fetching user data after creation:', retryError);
+                toast({
+                  variant: "destructive",
+                  title: "Error",
+                  description: "Failed to fetch user data",
+                });
+                return;
+              }
+              
+              if (retryData) {
+                setUserData(retryData);
+                setEditName(retryData.full_name || '');
+                setProfilePic(retryData.avatar_url || '');
+                setUniversity(retryData.university || '');
+                setBio(retryData.bio || '');
+              }
+            } else {
+              toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to fetch user data",
+              });
+            }
+            return;
+          }
 
-        if (data) {
-          setUserData(data);
-          setEditName(data.full_name || '');
-          setProfilePic(data.avatar_url || '');
-          setUniversity(data.university || '');
-          setBio(data.bio || '');
+          if (data) {
+            setUserData(data);
+            setEditName(data.full_name || '');
+            setProfilePic(data.avatar_url || '');
+            setUniversity(data.university || '');
+            setBio(data.bio || '');
+          } else {
+            setEditName('');
+            setProfilePic('');
+            setUniversity('');
+            setBio('');
+          }
         } else {
           setEditName('');
           setProfilePic('');
           setUniversity('');
           setBio('');
         }
-      } else {
-        setEditName('');
-        setProfilePic('');
-        setUniversity('');
-        setBio('');
+      } catch (err) {
+        console.error('Unexpected error:', err);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "An unexpected error occurred",
+        });
       }
     };
     if (isOpen) fetchUser();
   }, [isOpen, toast]);
+
+  // When displaying the profile, always resolve the public URL from the storage path
+  useEffect(() => {
+    if (userData && userData.avatar_url) {
+      try {
+        // Check if the avatar_url is already a full URL
+        if (userData.avatar_url.startsWith('http')) {
+          setProfilePic(userData.avatar_url);
+        } else {
+          // If it's just a path, construct the full URL
+          const { data: publicUrlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(userData.avatar_url);
+          setProfilePic(publicUrlData.publicUrl);
+        }
+      } catch (error) {
+        console.error('Error resolving avatar URL:', error);
+        // If there's an error, show the default avatar
+        setProfilePic('');
+      }
+    }
+  }, [userData]);
 
   if (!isOpen || !user) return null;
 
@@ -73,10 +155,11 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
     setSaving(true);
     const updates = {
       id: user.id,
-      email: user.email,
       full_name: editName,
+      university,
+      bio,
     };
-    const { error } = await supabase.from('users').upsert(updates, { onConflict: 'id' });
+    const { error } = await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
     if (error) {
       toast({
         variant: "destructive",
@@ -103,35 +186,70 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   const handleProfilePicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user || !e.target.files || e.target.files.length === 0) return;
     setUploading(true);
-    const file = e.target.files[0];
-    const filePath = `${user.id}/${file.name}`;
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
-    if (uploadError) {
+    try {
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      // Create a clean file name without spaces or special characters
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 8);
+      const cleanFileName = `${user.id}/${timestamp}-${randomString}.${fileExt}`;
+      
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(cleanFileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to upload image: " + uploadError.message,
+        });
+        setUploading(false);
+        return;
+      }
+
+      // Get the public URL for display
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(cleanFileName);
+
+      // Update the user's profile with just the file path
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          avatar_url: cleanFileName, // Store only the clean file path
+        })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update profile picture",
+        });
+      } else {
+        setProfilePic(publicUrl); // Use the full URL for display
+        toast({
+          title: "Success",
+          description: "Profile picture updated successfully",
+        });
+      }
+    } catch (error) {
+      console.error('Error:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to upload image: " + uploadError.message,
+        description: "An unexpected error occurred",
       });
+    } finally {
       setUploading(false);
-      return;
     }
-    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-    setProfilePic(data.publicUrl);
-    // Save avatar_url to profile
-    const { error: updateError } = await supabase.from('users').upsert({ id: user.id, avatar_url: data.publicUrl }, { onConflict: 'id' });
-    if (updateError) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update profile picture",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Profile picture updated successfully",
-      });
-    }
-    setUploading(false);
   };
 
   const handleCompleteProfileSave = async () => {
@@ -140,18 +258,15 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
     try {
       const updates = {
         id: user.id,
-        email: user.email,
         full_name: editName,
         university,
         bio,
-        avatar_url: profilePic,
-        updated_at: new Date().toISOString()
       };
       
       console.log('Attempting to update profile with:', updates);
       
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .upsert(updates, { 
           onConflict: 'id'
         });
@@ -226,20 +341,18 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
               <p className="font-medium">{user.email}</p>
             </div>
           </div>
-
           <div className="flex items-center p-3 bg-gray-50 rounded-lg">
             <GraduationCap className="text-gray-400 mr-3" size={20} />
             <div className="flex-1">
               <p className="text-sm text-gray-600">University</p>
-              <p className="font-medium">{university || '(Not set)'}</p>
+              <p className="font-medium">{university || '(Not set)'} </p>
             </div>
           </div>
-
           <div className="flex items-center p-3 bg-gray-50 rounded-lg">
             <Info className="text-gray-400 mr-3" size={20} />
             <div className="flex-1">
               <p className="text-sm text-gray-600">Bio</p>
-              <p className="font-medium">{bio || '(Not set)'}</p>
+              <p className="font-medium">{bio || '(Not set)'} </p>
             </div>
           </div>
         </div>
@@ -354,6 +467,19 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
             </div>
           </div>
         )}
+
+        {/* Add View My Listings button at the bottom */}
+        <div className="mt-6 flex justify-center">
+          <Button
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded shadow hover:from-blue-700 hover:to-purple-700 transition"
+            onClick={() => {
+              onClose();
+              navigate('/my-listings');
+            }}
+          >
+            View My Listings
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -16,21 +16,34 @@ const AuthCallback = () => {
         if (error) throw error;
 
         if (session?.user) {
-          // Create user profile in the users table
-          const { error: profileError } = await supabase
+          // First check if user profile already exists
+          const { data: existingProfile, error: checkError } = await supabase
             .from('users')
-            .upsert({
-              id: session.user.id,
-              email: session.user.email,
-              full_name: session.user.user_metadata.full_name,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, { 
-              onConflict: 'id'
-            });
+            .select('id')
+            .eq('id', session.user.id)
+            .single();
 
-          if (profileError) {
-            console.error('Error creating profile:', profileError);
+          if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+            console.error('Error checking profile:', checkError);
+            throw checkError;
+          }
+
+          // Only create profile if it doesn't exist
+          if (!existingProfile) {
+            const { error: profileError } = await supabase
+              .from('users')
+              .insert({
+                id: session.user.id,
+                email: session.user.email,
+                full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+
+            if (profileError) {
+              console.error('Error creating profile:', profileError);
+              throw profileError;
+            }
           }
 
           toast({
@@ -46,7 +59,7 @@ const AuthCallback = () => {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to verify email. Please try again.",
+          description: error.message || "Failed to verify email. Please try again.",
         });
         navigate('/signin');
       }

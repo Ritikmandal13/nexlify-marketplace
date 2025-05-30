@@ -63,7 +63,7 @@ npm run dev
 ## Supabase Setup
 - Create a Supabase project at [supabase.com](https://supabase.com/).
 - Set up tables: `users`, `listings`, `messages`, etc.
-- Set up Storage buckets (e.g., `Avatars`, `listing-images`).
+- Set up Storage buckets (e.g., `avatars`, `listing-images`).
 - Configure Auth settings (Site URL = your Vercel URL).
 - Add RLS policies for security.
 - (Optional) Add triggers for automatic profile creation.

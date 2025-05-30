@@ -36,7 +36,7 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
@@ -70,7 +70,7 @@ const ForgotPassword = () => {
             </form>
           ) : (
             <div className="text-center space-y-4">
-              <p className="text-green-600">
+              <p className="text-primary">
                 Password reset email has been sent to {email}
               </p>
               <Button
@@ -86,7 +86,7 @@ const ForgotPassword = () => {
         <CardFooter className="flex justify-center">
           <div className="text-sm text-center">
             Remember your password?{' '}
-            <Link to="/signin" className="text-blue-600 hover:text-blue-800">
+            <Link to="/signin" className="text-primary hover:text-primary/80">
               Sign in
             </Link>
           </div>

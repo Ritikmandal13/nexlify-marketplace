@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ChevronRight, MapPin, MessageCircle, Shield, Zap, Users, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,28 +11,28 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
       subtitle: "Your Local Campus Marketplace",
       description: "Buy and sell with classmates, neighbors, and your local community. Discover amazing deals just around the corner.",
       icon: <Heart className="text-white" size={48} />,
-      gradient: "from-blue-500 to-purple-600"
+      gradient: "from-primary to-primary/80"
     },
     {
       title: "Discover Nearby",
       subtitle: "Map-Based Shopping",
       description: "Find items and sellers near you with our interactive map. See exactly where everything is located on campus.",
       icon: <MapPin className="text-white" size={48} />,
-      gradient: "from-green-500 to-blue-500"
+      gradient: "from-primary to-primary/80"
     },
     {
       title: "Chat Instantly",
       subtitle: "Real-Time Messaging",
       description: "Connect with buyers and sellers instantly. Negotiate prices, ask questions, and arrange meetups seamlessly.",
       icon: <MessageCircle className="text-white" size={48} />,
-      gradient: "from-purple-500 to-pink-500"
+      gradient: "from-primary to-primary/80"
     },
     {
       title: "Trade Safely",
       subtitle: "Verified Community",
       description: "All users are verified with student IDs. Meet at safe campus locations with our suggested meeting spots.",
       icon: <Shield className="text-white" size={48} />,
-      gradient: "from-orange-500 to-red-500"
+      gradient: "from-primary to-primary/80"
     }
   ];
 
@@ -50,13 +49,13 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/20 to-accent/10 flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center p-6">
-        <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
           Nexlify
         </div>
-        <Button variant="ghost" onClick={onGetStarted} className="text-gray-600">
+        <Button variant="ghost" onClick={onGetStarted} className="text-muted-foreground">
           Skip
         </Button>
       </div>
@@ -70,17 +69,17 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
           </div>
 
           {/* Title */}
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
             {slides[currentSlide].title}
           </h1>
 
           {/* Subtitle */}
-          <h2 className="text-lg md:text-xl font-medium text-gray-600 mb-4">
+          <h2 className="text-lg md:text-xl font-medium text-muted-foreground mb-4">
             {slides[currentSlide].subtitle}
           </h2>
 
           {/* Description */}
-          <p className="text-gray-600 text-base md:text-lg max-w-md mx-auto leading-relaxed">
+          <p className="text-muted-foreground text-base md:text-lg max-w-md mx-auto leading-relaxed">
             {slides[currentSlide].description}
           </p>
         </div>
@@ -93,8 +92,8 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
               onClick={() => setCurrentSlide(index)}
               className={`w-3 h-3 rounded-full transition-all duration-300 ${
                 index === currentSlide
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 w-8'
-                  : 'bg-gray-300'
+                  ? 'bg-primary w-8'
+                  : 'bg-muted'
               }`}
             />
           ))}
@@ -106,7 +105,7 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
             variant="ghost"
             onClick={prevSlide}
             disabled={currentSlide === 0}
-            className="text-gray-600 disabled:opacity-30"
+            className="text-muted-foreground disabled:opacity-30"
           >
             Previous
           </Button>
@@ -114,7 +113,7 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
           {currentSlide === slides.length - 1 ? (
             <Button
               onClick={onGetStarted}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8"
+              className="bg-primary hover:bg-primary/90 px-8"
             >
               Get Started
               <ChevronRight className="ml-2" size={16} />
@@ -122,7 +121,7 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
           ) : (
             <Button
               onClick={nextSlide}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              className="bg-primary hover:bg-primary/90"
             >
               Next
               <ChevronRight className="ml-2" size={16} />
@@ -133,8 +132,8 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
 
       {/* Feature Preview */}
       <div className="px-6 pb-6">
-        <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
-          <div className="flex items-center justify-center space-x-6 text-sm text-gray-600">
+        <div className="bg-background/60 backdrop-blur-sm rounded-2xl p-4 border border-border">
+          <div className="flex items-center justify-center space-x-6 text-sm text-muted-foreground">
             <div className="flex items-center">
               <Users className="mr-1" size={16} />
               <span>Campus Community</span>

@@ -37,7 +37,7 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
@@ -78,15 +78,10 @@ const SignIn = () => {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="text-sm text-center">
-            <Link to="/forgot-password" className="text-blue-600 hover:text-blue-800">
-              Forgot your password?
-            </Link>
-          </div>
+        <CardFooter className="flex justify-center">
           <div className="text-sm text-center">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-blue-600 hover:text-blue-800">
+            <Link to="/signup" className="text-primary hover:text-primary/80">
               Sign up
             </Link>
           </div>

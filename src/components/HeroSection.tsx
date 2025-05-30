@@ -1,14 +1,23 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { MapPin, Search, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useNavigate } from 'react-router-dom';
 
 const HeroSection = () => {
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [location, setLocation] = useState('');
+
+  const handleSearch = () => {
+    // Navigate to marketplace with search parameters
+    navigate(`/marketplace?search=${encodeURIComponent(searchTerm)}&location=${encodeURIComponent(location)}`);
+  };
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-16 lg:py-24">
+    <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-2 lg:py-4">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
+        <div className="text-center mb-0">
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
             Your Local
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -21,13 +30,20 @@ const HeroSection = () => {
           </p>
           
           {/* Mobile-optimized Search Bar */}
-          <div className="max-w-2xl mx-auto mb-8">
+          <div className="max-w-2xl mx-auto mb-2">
             <div className="flex flex-col gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <Input 
                   placeholder="What are you looking for?" 
                   className="pl-10 h-12 text-lg"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch();
+                    }
+                  }}
                 />
               </div>
               <div className="flex gap-3">
@@ -36,37 +52,22 @@ const HeroSection = () => {
                   <Input 
                     placeholder="Location" 
                     className="pl-10 h-12 text-lg"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
                   />
                 </div>
-                <Button className="h-12 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                <Button 
+                  className="h-12 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  onClick={handleSearch}
+                >
                   Search
                 </Button>
               </div>
-            </div>
-          </div>
-
-          {/* Mobile-optimized Feature Highlights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="text-white" size={32} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Map Discovery</h3>
-              <p className="text-gray-600 text-sm">Find items and sellers near you with our interactive map</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="text-white" size={32} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Safe Trading</h3>
-              <p className="text-gray-600 text-sm">Verified users and safe meeting spots for secure transactions</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Zap className="text-white" size={32} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Instant Chat</h3>
-              <p className="text-gray-600 text-sm">Real-time messaging to connect with buyers and sellers</p>
             </div>
           </div>
         </div>
