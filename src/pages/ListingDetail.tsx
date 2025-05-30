@@ -3,9 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, MapPin, Star, Heart, MessageCircle, Share } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, Heart, MessageCircle, Share, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Listing {
   id: string;
@@ -18,6 +28,7 @@ interface Listing {
   images: string[];
   seller_id: string;
   seller_name: string;
+  seller_avatar_url?: string;
   created_at: string;
   status?: string;
 }
@@ -28,19 +39,38 @@ const ListingDetail = () => {
   const { toast } = useToast();
   const [listing, setListing] = useState<Listing | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isOwner, setIsOwner] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchListing = async () => {
       if (!id) return;
+      setIsLoading(true);
       const { data, error } = await supabase.from('listings').select('*').eq('id', id).single();
       if (error) {
         setListing(null);
       } else {
         setListing(data);
+        // Check if current user is the owner
+        const { data: { user } } = await supabase.auth.getUser();
+        setIsOwner(user?.id === data.seller_id);
       }
+      setIsLoading(false);
     };
     fetchListing();
   }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl text-gray-600">Loading listing details...</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
@@ -66,6 +96,14 @@ const ListingDetail = () => {
       return;
     }
     if (!listing) return;
+    if (!user?.id || !listing?.seller_id) {
+      toast({
+        title: 'Error',
+        description: 'User or seller information is missing.',
+        variant: 'destructive',
+      });
+      return;
+    }
     // Check if a chat already exists between these two users for this product
     const { data: existingChats, error } = await supabase
       .from('chats')
@@ -95,6 +133,15 @@ const ListingDetail = () => {
       }
       chatId = newChat.id;
     }
+    // Only navigate if chatId is valid
+    if (!chatId) {
+      toast({
+        title: 'Error',
+        description: 'Could not find or create chat.',
+        variant: 'destructive',
+      });
+      return;
+    }
     navigate(`/chat/${chatId}`);
   };
 
@@ -103,6 +150,48 @@ const ListingDetail = () => {
       title: "Added to favorites",
       description: "This item has been saved to your favorites.",
     });
+  };
+
+  const handleDelete = async () => {
+    if (!listing) return;
+
+    try {
+      // Delete related chats first
+      const { error: chatError } = await supabase
+        .from('chats')
+        .delete()
+        .eq('product_id', listing.id);
+
+      if (chatError) throw chatError;
+
+      // Delete images from storage
+      for (const imageUrl of listing.images) {
+        const path = imageUrl.split('/').pop();
+        if (path) {
+          await supabase.storage.from('listing-images').remove([path]);
+        }
+      }
+
+      // Delete the listing
+      const { error } = await supabase
+        .from('listings')
+        .delete()
+        .eq('id', listing.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Listing Deleted",
+        description: "Your listing and related chats have been deleted.",
+      });
+      navigate('/marketplace');
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete listing.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -195,9 +284,21 @@ const ListingDetail = () => {
                 <h3 className="text-lg font-semibold mb-3">Seller Information</h3>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
-                      {(listing.seller_name || 'U').charAt(0)}
-                    </div>
+                    {listing.seller_avatar_url ? (
+                      <img
+                        src={
+                          listing.seller_avatar_url.startsWith('http')
+                            ? listing.seller_avatar_url
+                            : `https://spjvuhlgitqnthcvnpyb.supabase.co/storage/v1/object/public/avatars/${listing.seller_avatar_url}`
+                        }
+                        alt={listing.seller_name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
+                        {(listing.seller_name || 'U').charAt(0)}
+                      </div>
+                    )}
                     <div className="ml-3">
                       <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
                       <div className="flex items-center text-sm text-gray-600">
@@ -211,30 +312,54 @@ const ListingDetail = () => {
             </Card>
 
             {/* Action Buttons */}
-            <div className="space-y-3">
-              <Button 
-                onClick={handleMessageSeller} 
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                size="lg"
-              >
-                <MessageCircle size={16} className="mr-2" />
-                Message Seller
-              </Button>
-              
-              <div className="flex space-x-3">
-                <Button
-                  onClick={handleAddToFavorites}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Heart size={16} className="mr-2" />
-                  Save
-                </Button>
-                <Button variant="outline" className="flex-1">
-                  <Share size={16} className="mr-2" />
-                  Share
-                </Button>
-              </div>
+            <div className="space-y-4">
+              {isOwner ? (
+                <div className="flex space-x-3">
+                  <Button
+                    onClick={() => navigate(`/edit-listing/${listing.id}`)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    size="lg"
+                  >
+                    <Edit size={16} className="mr-2" />
+                    Edit Listing
+                  </Button>
+                  <Button
+                    onClick={() => setShowDeleteDialog(true)}
+                    variant="destructive"
+                    className="flex-1"
+                    size="lg"
+                  >
+                    <Trash2 size={16} className="mr-2" />
+                    Delete Listing
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button 
+                    onClick={handleMessageSeller} 
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    size="lg"
+                  >
+                    <MessageCircle size={16} className="mr-2" />
+                    Message Seller
+                  </Button>
+                  
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleAddToFavorites}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      <Heart size={16} className="mr-2" />
+                      Save
+                    </Button>
+                    <Button variant="outline" className="flex-1">
+                      <Share size={16} className="mr-2" />
+                      Share
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="mt-6 text-sm text-gray-500">
@@ -243,6 +368,24 @@ const ListingDetail = () => {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your listing
+              and remove all associated images.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

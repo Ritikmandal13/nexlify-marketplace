@@ -1,0 +1,423 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Send, Trash2, ArrowLeft, Check, CheckCheck } from 'lucide-react';
+import Navigation from '@/components/Navigation';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+interface Message {
+  id: string;
+  chat_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  is_read: boolean;
+  sender?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
+}
+
+interface UserProfile {
+  id: string;
+  full_name: string;
+  avatar_url?: string;
+}
+
+interface Chat {
+  id: string;
+  user_ids: string[];
+  created_at: string;
+}
+
+const ChatDetail = () => {
+  const { id: chatId } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [otherUser, setOtherUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    const fetchChatData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to access chat.",
+          variant: "destructive"
+        });
+        navigate('/login');
+        return;
+      }
+      setCurrentUser(user);
+
+      // Fetch chat details
+      const { data: chatData, error: chatError } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('id', chatId)
+        .single();
+
+      if (chatError || !chatData) {
+        toast({
+          title: "Error",
+          description: "Chat not found.",
+          variant: "destructive"
+        });
+        navigate('/chat');
+        return;
+      }
+
+      setChat(chatData);
+
+      // Get other user's ID
+      const otherUserId = chatData.user_ids.find((id: string) => id !== user.id);
+      if (!otherUserId) {
+        toast({
+          title: "Error",
+          description: "Invalid chat user_ids.",
+          variant: "destructive"
+        });
+        navigate('/chat');
+        return;
+      }
+
+      // Fetch other user's profile
+      const { data: otherUserData, error: userError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('id', otherUserId)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user profile:', userError);
+        toast({
+          title: "Error",
+          description: "Failed to load user profile.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setOtherUser(otherUserData);
+
+      // Fetch existing messages
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:profiles (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: true });
+
+      if (messagesError) {
+        console.error('Error fetching messages:', messagesError);
+        return;
+      }
+
+      if (messagesData) {
+        setMessages(Array.isArray(messagesData) ? messagesData : []);
+      }
+
+      // Mark unread messages as read
+      const unreadMessages = messagesData?.filter(
+        (msg) => !msg.is_read && msg.sender_id !== user.id
+      );
+
+      if (unreadMessages?.length) {
+        await supabase
+          .from('messages')
+          .update({ is_read: true })
+          .in('id', unreadMessages.map((msg) => msg.id));
+      }
+    };
+
+    fetchChatData();
+
+    // Subscribe to new messages and is_read updates
+    const subscription = supabase
+      .channel(`chat:${chatId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${chatId}`,
+        },
+        async (payload) => {
+          const newMessage = payload.new as Message;
+          setMessages((prev) => [...prev, newMessage]);
+
+          // Mark message as read if we're the recipient
+          if (newMessage.sender_id !== currentUser?.id) {
+            await supabase
+              .from('messages')
+              .update({ is_read: true })
+              .eq('id', newMessage.id);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${chatId}`,
+        },
+        (payload) => {
+          const updatedMessage = payload.new as Message;
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [chatId, navigate, toast, currentUser?.id]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !currentUser || !chatId) return;
+
+    // Insert the message
+    const { error: messageError } = await supabase.from('messages').insert({
+      chat_id: chatId,
+      sender_id: currentUser.id,
+      content: newMessage.trim(),
+      is_read: false,
+    });
+
+    if (messageError) {
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Update chat with last message and time
+    await supabase
+      .from('chats')
+      .update({
+        last_message: newMessage.trim(),
+        last_message_time: new Date().toISOString(),
+      })
+      .eq('id', chatId);
+
+    // Find the recipient (other user in the chat)
+    const recipientId = chat?.user_ids.find((id: string) => id !== currentUser.id);
+    if (recipientId) {
+      // Insert a notification for the recipient
+      await supabase.from('notifications').insert({
+        user_id: recipientId,
+        chat_id: chatId,
+        is_read: false,
+        // Optionally add message_id, created_at, etc.
+      });
+    }
+
+    setNewMessage('');
+  };
+
+  const handleDeleteChat = async () => {
+    if (!chatId) return;
+    try {
+      // Delete all messages for this chat
+      await supabase.from('messages').delete().eq('chat_id', chatId);
+      // Delete the chat itself
+      await supabase.from('chats').delete().eq('id', chatId);
+      toast({
+        title: 'Chat Deleted',
+        description: 'The chat and all its messages have been deleted.',
+      });
+      navigate('/chats');
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete chat.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (!chat || !otherUser) {
+    return (
+      <>
+        <Navigation />
+        <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600 dark:text-white">Loading chat...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Navigation />
+      <div className="min-h-screen bg-gray-50 dark:bg-black flex flex-col items-center">
+        <div className="w-full max-w-2xl flex flex-col h-screen pb-20">
+          {/* Sticky Chat Header */}
+          <div className="sticky top-16 z-20 bg-white/80 dark:bg-black/90 backdrop-blur border-b border-gray-200 dark:border-black h-20 flex items-center">
+            <div className="flex items-center gap-4 px-4 w-full">
+              {/* Back Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/chat')}
+                className="mr-2 dark:text-white"
+                title="Back"
+              >
+                <ArrowLeft className="h-6 w-6" />
+              </Button>
+              {otherUser.avatar_url ? (
+                <img
+                  src={
+                    otherUser.avatar_url.startsWith('http')
+                      ? otherUser.avatar_url
+                      : `https://spjvuhlgitqnthcvnpyb.supabase.co/storage/v1/object/public/avatars/${otherUser.avatar_url}`
+                  }
+                  alt={otherUser.full_name}
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-12 w-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
+                  {otherUser.full_name.charAt(0)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h2 className="font-semibold truncate text-lg text-gray-900 dark:text-white">
+                  {otherUser.full_name}
+                </h2>
+              </div>
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => setShowDeleteDialog(true)}
+                title="Delete Chat"
+                className="dark:bg-red-700 dark:hover:bg-red-800"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+          {/* Scrollable Messages Area */}
+          <div className="flex-1 overflow-y-auto w-full">
+            <div className="py-4 pb-32">
+              {Array.isArray(messages) && messages.length > 0 ? (
+                <div className="flex flex-col gap-3 w-full">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex w-full ${
+                        message.sender_id === currentUser.id ? 'justify-end' : 'justify-start'
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm break-words relative ${
+                          message.sender_id === currentUser.id
+                            ? 'bg-blue-600 text-white rounded-br-md ml-8'
+                            : 'bg-white dark:bg-black text-gray-900 dark:text-white rounded-bl-md mr-8 border dark:border-gray-800'
+                        }`}
+                      >
+                        {message.content}
+                        <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-60 dark:text-gray-300">
+                          <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          {message.sender_id === currentUser.id && (
+                            message.is_read ? (
+                              <CheckCheck size={16} className="text-green-400" />
+                            ) : (
+                              <Check size={16} className="text-gray-300" />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-400">
+                  No messages yet. Start the conversation!
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+          {/* Fixed Message Input Bar */}
+          <div className="fixed bottom-16 left-0 right-0 z-30 bg-white dark:bg-black px-2 py-2 border-t border-gray-200 dark:border-gray-800 max-w-2xl mx-auto">
+            <form onSubmit={handleSendMessage} className="flex gap-2 bg-white dark:bg-black rounded-xl shadow-md p-2">
+              <Input
+                type="text"
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="flex-1 border-none focus:ring-0 focus:outline-none bg-transparent dark:text-white dark:placeholder-gray-400"
+                autoFocus
+              />
+              <Button type="submit" size="icon" disabled={!newMessage.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Send className="h-5 w-5" />
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this chat and all its messages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteChat} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
+
+export default ChatDetail; 

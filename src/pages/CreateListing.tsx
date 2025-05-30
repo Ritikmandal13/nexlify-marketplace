@@ -58,7 +58,29 @@ const CreateListing = () => {
     const files = event.target.files;
     if (files) {
       const newImages = Array.from(files).slice(0, 5 - selectedImages.length);
-      setSelectedImages(prev => [...prev, ...newImages]);
+      // Validate each file
+      const validImages = newImages.filter(file => {
+        // Check if file is an image
+        if (!file.type.startsWith('image/')) {
+          toast({
+            title: "Invalid file type",
+            description: "Please upload only image files.",
+            variant: "destructive"
+          });
+          return false;
+        }
+        // Check file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          toast({
+            title: "File too large",
+            description: "Image size should be less than 5MB.",
+            variant: "destructive"
+          });
+          return false;
+        }
+        return true;
+      });
+      setSelectedImages(prev => [...prev, ...validImages]);
     }
   };
 
@@ -68,13 +90,44 @@ const CreateListing = () => {
 
   // Helper to upload a single image to Supabase Storage
   const uploadImageToSupabase = async (file: File, userId: string) => {
-    const fileExt = file.name.split('.').pop();
-    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-    const { data, error } = await supabase.storage.from('listing-images').upload(filePath, file);
-    if (error) throw error;
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage.from('listing-images').getPublicUrl(filePath);
-    return publicUrlData.publicUrl;
+    try {
+      // Ensure file has a valid extension
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      
+      if (!validExtensions.includes(fileExt)) {
+        throw new Error('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+      }
+
+      // Create a unique file path
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 8);
+      const filePath = `${userId}/${timestamp}-${randomString}.${fileExt}`;
+
+      // Upload to Supabase Storage with proper content type
+      const { data, error } = await supabase.storage
+        .from('listing-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type
+        });
+
+      if (error) {
+        console.error('Upload error:', error);
+        throw new Error(error.message);
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('listing-images')
+        .getPublicUrl(filePath);
+
+      return publicUrlData.publicUrl;
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      throw new Error(error.message || 'Failed to upload image');
+    }
   };
 
   const onSubmit = async (data: ListingFormData) => {
@@ -89,14 +142,26 @@ const CreateListing = () => {
     }
     setUploading(true);
     try {
+      // Get user's profile to get avatar URL
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+      }
+
       // Upload all images to Supabase Storage
       const imageUrls: string[] = [];
       for (const file of selectedImages) {
         const url = await uploadImageToSupabase(file, user.id);
         imageUrls.push(url);
       }
+
       // Insert listing into Supabase
-      const { error } = await supabase.from('listings').insert({
+      const listingData = {
         title: data.title,
         description: data.description,
         price: data.price,
@@ -107,7 +172,10 @@ const CreateListing = () => {
         seller_id: user.id,
         seller_name: user.user_metadata?.full_name || user.email,
         seller_email: user.email,
-      });
+        seller_avatar_url: userProfile?.avatar_url || null,
+      };
+
+      const { error } = await supabase.from('listings').insert(listingData);
       if (error) throw error;
       toast({
         title: "Listing Created!",
