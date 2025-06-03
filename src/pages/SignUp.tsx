@@ -43,12 +43,7 @@ const SignUp = () => {
       if (error) throw error;
       
       if (data.user) {
-        // Insert the full name into the profiles table
-        await supabase.from('profiles').insert({
-          id: data.user.id,
-          full_name: displayName,
-          avatar_url: '', // or set as needed
-        });
+        // No need to insert into profiles table; handled by Supabase trigger
         setVerificationSent(true);
         toast({
           title: "Verification Email Sent!",

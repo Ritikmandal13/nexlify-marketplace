@@ -10,10 +10,12 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return (savedTheme as Theme) || 'light';
-  });
+  // Always reset to light mode on first load
+  useEffect(() => {
+    localStorage.removeItem('theme');
+  }, []);
+
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
     // Update localStorage when theme changes

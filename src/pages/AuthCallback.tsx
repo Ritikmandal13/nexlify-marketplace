@@ -18,7 +18,7 @@ const AuthCallback = () => {
         if (session?.user) {
           // First check if user profile already exists
           const { data: existingProfile, error: checkError } = await supabase
-            .from('users')
+            .from('profiles')
             .select('id')
             .eq('id', session.user.id)
             .single();
@@ -31,10 +31,9 @@ const AuthCallback = () => {
           // Only create profile if it doesn't exist
           if (!existingProfile) {
             const { error: profileError } = await supabase
-              .from('users')
+              .from('profiles')
               .insert({
                 id: session.user.id,
-                email: session.user.email,
                 full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()

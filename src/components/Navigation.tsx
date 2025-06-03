@@ -203,17 +203,6 @@ const Navigation = () => {
                         </Button>
                         <Button
                           variant="ghost"
-                          className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                          onClick={() => {
-                            navigate('/profile');
-                            closeMenu();
-                          }}
-                        >
-                          <User size={20} className="mr-2" />
-                          Profile
-                        </Button>
-                        <Button
-                          variant="ghost"
                           className="w-full justify-start text-red-600 dark:text-red-400 dark:hover:bg-gray-700"
                           onClick={handleSignOut}
                         >
@@ -222,16 +211,16 @@ const Navigation = () => {
                       </>
                     ) : (
                       <Button
-  variant="ghost"
-  className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-  onClick={() => {
-    navigate('/signin');
-    closeMenu();
-  }}
->
-  <User size={20} className="mr-2" />
-  Sign In
-</Button>
+                        variant="ghost"
+                        className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
+                        onClick={() => {
+                          navigate('/signin');
+                          closeMenu();
+                        }}
+                      >
+                        <User size={20} className="mr-2" />
+                        Sign In
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -252,15 +241,17 @@ const Navigation = () => {
               <span className="text-xs">Market</span>
             </Button>
             <div className="flex-1 flex items-center justify-center" /> {/* Spacer for FAB */}
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/chat') }>
-              <MessageCircle size={20} />
-              <span className="text-xs">Chat</span>
-              {unreadCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 bg-red-500 text-white text-xs">
-                  {unreadCount}
-                </Badge>
-              )}
-            </Button>
+            <div className="relative flex-1 flex items-center justify-center">
+              <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/chat') }>
+                <MessageCircle size={20} />
+                <span className="text-xs">Chat</span>
+                {unreadCount > 0 && (
+                  <Badge className="absolute top-0 right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full border-2 border-white dark:border-gray-800">
+                    {unreadCount}
+                  </Badge>
+                )}
+              </Button>
+            </div>
             <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={handleProfileClick}>
               <User size={20} />
               <span className="text-xs">Profile</span>
