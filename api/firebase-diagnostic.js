@@ -40,12 +40,52 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, diagnostic });
     }
 
+    // Better private key handling for Vercel
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    let privateKeyProcessingSteps = [];
+    
+    if (privateKey) {
+      privateKeyProcessingSteps.push(`Original length: ${privateKey.length}`);
+      privateKeyProcessingSteps.push(`Original starts with: ${privateKey.substring(0, 50)}`);
+      
+      // Handle different possible formats
+      privateKey = privateKey.replace(/\\n/g, '\n'); // Replace literal \n with actual newlines
+      privateKeyProcessingSteps.push(`After \\n replacement: ${privateKey.substring(0, 50)}`);
+      
+      privateKey = privateKey.replace(/\\\\/g, '\\'); // Replace double backslashes
+      privateKeyProcessingSteps.push(`After \\\\ replacement: ${privateKey.substring(0, 50)}`);
+      
+      // Ensure proper formatting
+      if (!privateKey.includes('\n')) {
+        privateKeyProcessingSteps.push('No newlines found, adding manually');
+        // If still no newlines, try to add them manually
+        privateKey = privateKey.replace(/-----BEGIN PRIVATE KEY-----/g, '-----BEGIN PRIVATE KEY-----\n');
+        privateKey = privateKey.replace(/-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----');
+        // Add newlines every 64 characters in the key content
+        const beginIndex = privateKey.indexOf('-----BEGIN PRIVATE KEY-----\n') + '-----BEGIN PRIVATE KEY-----\n'.length;
+        const endIndex = privateKey.indexOf('\n-----END PRIVATE KEY-----');
+        if (beginIndex < endIndex) {
+          const keyContent = privateKey.substring(beginIndex, endIndex);
+          const formattedKeyContent = keyContent.replace(/(.{64})/g, '$1\n');
+          privateKey = privateKey.substring(0, beginIndex) + formattedKeyContent + privateKey.substring(endIndex);
+        }
+        privateKeyProcessingSteps.push(`After manual formatting: ${privateKey.substring(0, 100)}`);
+      } else {
+        privateKeyProcessingSteps.push('Newlines found in key');
+      }
+      
+      privateKeyProcessingSteps.push(`Final length: ${privateKey.length}`);
+      privateKeyProcessingSteps.push(`Final format check: ${privateKey.includes('-----BEGIN PRIVATE KEY-----') && privateKey.includes('-----END PRIVATE KEY-----')}`);
+    }
+
+    diagnostic.firebaseInit.privateKeyProcessing = privateKeyProcessingSteps;
+
     // Build service account object
     const serviceAccount = {
       type: "service_account",
       project_id: process.env.FIREBASE_PROJECT_ID,
       private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      private_key: privateKey,
       client_email: process.env.FIREBASE_CLIENT_EMAIL,
       client_id: process.env.FIREBASE_CLIENT_ID,
       auth_uri: "https://accounts.google.com/o/oauth2/auth",
@@ -61,7 +101,8 @@ export default async function handler(req, res) {
       hasPrivateKey: !!serviceAccount.private_key,
       hasClientEmail: !!serviceAccount.client_email,
       privateKeyFormat: serviceAccount.private_key?.includes('-----BEGIN PRIVATE KEY-----'),
-      privateKeyLength: serviceAccount.private_key?.length
+      privateKeyLength: serviceAccount.private_key?.length,
+      privateKeyLines: serviceAccount.private_key?.split('\n').length
     };
 
     // Try to initialize Firebase
