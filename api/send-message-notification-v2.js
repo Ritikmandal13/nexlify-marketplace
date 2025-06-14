@@ -4,49 +4,13 @@ import admin from 'firebase-admin';
 const SUPABASE_URL = 'https://spjvuhlgitqnthcvnpyb.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwanZ1aGxnaXRxbnRoY3ZucHliIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODI3NTAxOSwiZXhwIjoyMDYzODUxMDE5fQ.HHjRCn7Lib3sZbiHbLgipJspaF28IiLRSZECNv7qUxE';
 
-// Initialize Firebase Admin SDK using full service account JSON
+// Initialize Firebase Admin SDK using only FIREBASE_SERVICE_ACCOUNT_JSON
 if (!admin.apps.length) {
   try {
-    // Try to use full service account JSON if available
-    let serviceAccount;
-    
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      // If we have the full JSON, use it directly
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    } else {
-      // Fallback to individual environment variables (your current setup)
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-      if (privateKey) {
-        privateKey = privateKey.replace(/\\n/g, '\n');
-        privateKey = privateKey.replace(/\\\\/g, '\\');
-        if (!privateKey.includes('\n')) {
-          privateKey = privateKey.replace(/-----BEGIN PRIVATE KEY-----/g, '-----BEGIN PRIVATE KEY-----\n');
-          privateKey = privateKey.replace(/-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----');
-          const beginIndex = privateKey.indexOf('-----BEGIN PRIVATE KEY-----\n') + '-----BEGIN PRIVATE KEY-----\n'.length;
-          const endIndex = privateKey.indexOf('\n-----END PRIVATE KEY-----');
-          if (beginIndex < endIndex) {
-            const keyContent = privateKey.substring(beginIndex, endIndex);
-            const formattedKeyContent = keyContent.replace(/(.{64})/g, '$1\n');
-            privateKey = privateKey.substring(0, beginIndex) + formattedKeyContent + privateKey.substring(endIndex);
-          }
-        }
-      }
-
-      serviceAccount = {
-        type: "service_account",
-        project_id: process.env.FIREBASE_PROJECT_ID,
-        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: privateKey,
-        client_email: process.env.FIREBASE_CLIENT_EMAIL,
-        client_id: process.env.FIREBASE_CLIENT_ID,
-        auth_uri: "https://accounts.google.com/o/oauth2/auth",
-        token_uri: "https://oauth2.googleapis.com/token",
-        auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-        client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-        universe_domain: "googleapis.com"
-      };
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON env variable is missing');
     }
-
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
