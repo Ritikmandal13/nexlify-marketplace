@@ -267,16 +267,6 @@ const ChatDetail = () => {
       });
       // Trigger push notification via backend
       console.log('Sending notification with senderName:', currentUser.full_name);
-      await fetch('/api/send-message-notification-v2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientUserId: recipientId,
-          messageText: newMessage.trim(),
-          senderName: currentUser.full_name,
-          chatId
-        })
-      });
     }
 
     setNewMessage('');
