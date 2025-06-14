@@ -4,9 +4,9 @@ import admin from 'firebase-admin';
 const SUPABASE_URL = 'https://spjvuhlgitqnthcvnpyb.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwanZ1aGxnaXRxbnRoY3ZucHliIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODI3NTAxOSwiZXhwIjoyMDYzODUxMDE5fQ.HHjRCn7Lib3sZbiHbLgipJspaF28IiLRSZECNv7qUxE';
 
-// Initialize Firebase Admin SDK for Vercel
-function initializeFirebase() {
-  if (!admin.apps.length) {
+// Initialize Firebase Admin SDK for Vercel (do it once at module level)
+if (!admin.apps.length) {
+  try {
     const serviceAccount = {
       type: "service_account",
       project_id: process.env.FIREBASE_PROJECT_ID,
@@ -24,6 +24,9 @@ function initializeFirebase() {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
+    console.log('Firebase Admin initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin:', error);
   }
 }
 
@@ -52,8 +55,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Initialize Firebase
-    initializeFirebase();
+    // Check if Firebase is initialized
+    if (!admin.apps.length) {
+      throw new Error('Firebase Admin SDK not initialized');
+    }
 
     // Fetch FCM tokens from Supabase
     const supabaseResponse = await fetch(`${SUPABASE_URL}/rest/v1/user_fcm_tokens?user_id=eq.${recipientUserId}&select=fcm_token`, {
