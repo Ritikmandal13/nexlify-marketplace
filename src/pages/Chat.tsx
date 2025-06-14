@@ -35,7 +35,6 @@ const Chat = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    let notificationChannel;
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -49,38 +48,9 @@ const Chat = () => {
       }
       setCurrentUser(user);
       fetchChats(user.id);
-
-      // Subscribe to notifications for real-time unread badge updates
-      notificationChannel = supabase
-        .channel('realtime:notifications')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        }, (payload) => {
-          // console.log('Notification event received, refreshing chats', payload);
-          fetchChats(user.id);
-        })
-        .subscribe();
     };
-
     checkUser();
-
-    return () => {
-      if (notificationChannel) {
-        supabase.removeChannel(notificationChannel);
-      }
-    };
   }, [navigate, toast]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    const interval = setInterval(() => {
-      fetchChats(currentUser.id);
-    }, 5000); // every 5 seconds
-    return () => clearInterval(interval);
-  }, [currentUser]);
 
   const fetchChats = async (userId: string) => {
     try {
@@ -92,27 +62,11 @@ const Chat = () => {
 
       if (chatError) throw chatError;
 
-      // Fetch unread counts for each chat
-      const { data: notificationsData, error: notificationsError } = await supabase
-        .from('notifications')
-        .select('chat_id')
-        .eq('user_id', userId)
-        .eq('is_read', false);
-
-      if (notificationsError) throw notificationsError;
-
-      // Create a map of chat_id to unread count
-      const unreadCounts = new Map();
-      notificationsData?.forEach(notification => {
-        const currentCount = unreadCounts.get(notification.chat_id) || 0;
-        unreadCounts.set(notification.chat_id, currentCount + 1);
-      });
-
-      // For each chat, get the other user's details and attach unread_count
+      // For each chat, get the other user's details
       const chatsWithUsers = await Promise.all(
         chatData.map(async (chat) => {
           const otherUserId = chat.user_ids.find(id => id !== userId);
-          if (!otherUserId) return { ...chat, unread_count: unreadCounts.get(chat.id) || 0 };
+          if (!otherUserId) return { ...chat };
 
           const { data: userData, error: userError } = await supabase
             .from('profiles')
@@ -122,13 +76,12 @@ const Chat = () => {
 
           if (userError) {
             console.error('Error fetching user:', userError);
-            return { ...chat, unread_count: unreadCounts.get(chat.id) || 0 };
+            return { ...chat };
           }
 
           return {
             ...chat,
-            other_user: userData,
-            unread_count: unreadCounts.get(chat.id) || 0
+            other_user: userData
           };
         })
       );
@@ -136,11 +89,6 @@ const Chat = () => {
       setChats(chatsWithUsers);
     } catch (error) {
       console.error('Error fetching chats:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load chats. Please try again.",
-        variant: "destructive"
-      });
     } finally {
       setLoading(false);
     }
@@ -223,12 +171,6 @@ const Chat = () => {
                   tabIndex={0}
                 >
                   <CardContent className="p-4" onClick={async () => {
-                    await supabase
-                      .from('notifications')
-                      .update({ is_read: true })
-                      .eq('chat_id', chat.id)
-                      .eq('user_id', currentUser?.id)
-                      .eq('is_read', false);
                     navigate(`/chat/${chat.id}`);
                   }}>
                     <div className="flex items-center space-x-4">
@@ -248,11 +190,6 @@ const Chat = () => {
                             className="w-12 h-12 rounded-full object-cover absolute top-0 left-0 z-10"
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                           />
-                        )}
-                        {chat.unread_count > 0 && (
-                          <Badge className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full px-2 py-0.5 text-xs font-bold z-20">
-                            {chat.unread_count}
-                          </Badge>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">

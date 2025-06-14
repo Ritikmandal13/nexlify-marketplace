@@ -12,7 +12,6 @@ const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
   const { theme } = useTheme();
 
@@ -29,43 +28,6 @@ const Navigation = () => {
       listener?.subscription.unsubscribe();
     };
   }, []);
-
-  // Subscribe to notifications
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchUnreadCount = async () => {
-      const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
-
-      if (!error && count !== null) {
-        setUnreadCount(count);
-      }
-    };
-
-    // Initial fetch
-    fetchUnreadCount();
-
-    // Subscribe to new notifications
-    const subscription = supabase
-      .channel('notifications')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${user.id}`
-      }, () => {
-        fetchUnreadCount();
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [user]);
 
   const handleProfileClick = () => {
     setIsProfileOpen(true);
@@ -104,11 +66,6 @@ const Navigation = () => {
               <Link to="/chats" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 relative">
                 <MessageCircle size={18} />
                 Chat
-                {unreadCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 bg-red-500 text-white text-xs">
-                    {unreadCount}
-                  </Badge>
-                )}
               </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
@@ -245,11 +202,6 @@ const Navigation = () => {
               <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/chat') }>
                 <MessageCircle size={20} />
                 <span className="text-xs">Chat</span>
-                {unreadCount > 0 && (
-                  <Badge className="absolute top-0 right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full border-2 border-white dark:border-gray-800">
-                    {unreadCount}
-                  </Badge>
-                )}
               </Button>
             </div>
             <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={handleProfileClick}>

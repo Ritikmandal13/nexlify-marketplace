@@ -257,18 +257,6 @@ const ChatDetail = () => {
 
     // Find the recipient (other user in the chat)
     const recipientId = chat?.user_ids.find((id: string) => id !== currentUser.id);
-    if (recipientId) {
-      // Insert a notification for the recipient
-      await supabase.from('notifications').insert({
-        user_id: recipientId,
-        chat_id: chatId,
-        is_read: false,
-        // Optionally add message_id, created_at, etc.
-      });
-      // Trigger push notification via backend
-      console.log('Sending notification with senderName:', currentUser.full_name);
-    }
-
     setNewMessage('');
   };
 
