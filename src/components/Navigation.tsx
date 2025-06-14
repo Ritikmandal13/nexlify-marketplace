@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, MessageCircle, User, Menu, X, Plus, Home, ShoppingBag, Heart } from 'lucide-react';
+import { Search, MapPin, MessageCircle, User, Menu, X, Plus, Home, ShoppingBag, Heart, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link, useNavigate } from 'react-router-dom';
 import UserProfile from '@/components/auth/UserProfile';
@@ -66,6 +66,10 @@ const Navigation = () => {
               <Link to="/chats" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 relative">
                 <MessageCircle size={18} />
                 Chat
+              </Link>
+              <Link to="/meetups" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 relative">
+                <CalendarDays size={18} />
+                Meetups
               </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
@@ -146,6 +150,17 @@ const Navigation = () => {
                         >
                           <Plus size={20} className="mr-2" />
                           Create Listing
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
+                          onClick={() => {
+                            navigate('/meetups');
+                            closeMenu();
+                          }}
+                        >
+                          <CalendarDays size={20} className="mr-2" />
+                          Meetups
                         </Button>
                         <Button
                           variant="ghost"

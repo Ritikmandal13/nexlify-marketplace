@@ -25,6 +25,8 @@ import NotFound from "./pages/NotFound";
 import Favorites from '@/pages/Favorites';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { messaging, getToken, onMessage } from './firebase';
+import MeetupScheduler from './pages/MeetupScheduler';
+import ScheduleMeetup from './pages/ScheduleMeetup';
 
 const queryClient = new QueryClient();
 
@@ -205,6 +207,8 @@ function App() {
               <Route path="/chat" element={<Chat />} />
               <Route path="/my-listings" element={<MyListings />} />
               <Route path="/favorites" element={<Favorites />} />
+              <Route path="/meetups" element={<MeetupScheduler />} />
+              <Route path="/meetups/schedule" element={<ScheduleMeetup />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Router>

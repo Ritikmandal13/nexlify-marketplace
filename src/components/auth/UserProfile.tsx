@@ -22,6 +22,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   const [university, setUniversity] = useState('');
   const [bio, setBio] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [upiId, setUpiId] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -36,7 +37,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
           // Try to fetch user profile
           const { data, error } = await supabase
             .from('profiles')
-            .select('id, full_name, avatar_url, university, bio')
+            .select('id, full_name, avatar_url, university, bio, upi_id')
             .eq('id', authUser.id)
             .single();
           
@@ -65,7 +66,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
               // Retry fetching the profile
               const { data: retryData, error: retryError } = await supabase
                 .from('profiles')
-                .select('id, full_name, avatar_url, university, bio')
+                .select('id, full_name, avatar_url, university, bio, upi_id')
                 .eq('id', authUser.id)
                 .single();
               
@@ -85,6 +86,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
                 setProfilePic(retryData.avatar_url || '');
                 setUniversity(retryData.university || '');
                 setBio(retryData.bio || '');
+                setUpiId(retryData.upi_id || '');
               }
             } else {
               toast({
@@ -102,17 +104,20 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
             setProfilePic(data.avatar_url || '');
             setUniversity(data.university || '');
             setBio(data.bio || '');
+            setUpiId(data.upi_id || '');
           } else {
             setEditName('');
             setProfilePic('');
             setUniversity('');
             setBio('');
+            setUpiId('');
           }
         } else {
           setEditName('');
           setProfilePic('');
           setUniversity('');
           setBio('');
+          setUpiId('');
         }
       } catch (err) {
         console.error('Unexpected error:', err);
@@ -261,6 +266,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
         full_name: editName,
         university,
         bio,
+        upi_id: upiId,
       };
       
       console.log('Attempting to update profile with:', updates);
@@ -341,6 +347,15 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
               <p className="font-medium">{user.email}</p>
             </div>
           </div>
+          {upiId && (
+            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+              <ImageIcon className="text-gray-400 mr-3" size={20} />
+              <div>
+                <p className="text-sm text-gray-600">UPI ID</p>
+                <p className="font-medium">{upiId}</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center p-3 bg-gray-50 rounded-lg">
             <GraduationCap className="text-gray-400 mr-3" size={20} />
             <div className="flex-1">
@@ -454,6 +469,16 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
                     value={bio}
                     onChange={e => setBio(e.target.value)}
                     className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">UPI ID</label>
+                  <input
+                    type="text"
+                    value={upiId}
+                    onChange={e => setUpiId(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    placeholder="yourname@upi"
                   />
                 </div>
                 <Button

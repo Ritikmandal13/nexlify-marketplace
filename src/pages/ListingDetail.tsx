@@ -343,7 +343,13 @@ const ListingDetail = () => {
                     <MessageCircle size={16} className="mr-2" />
                     Message Seller
                   </Button>
-                  
+                  <Button
+                    onClick={() => navigate(`/meetups/schedule?listingId=${listing.id}`)}
+                    className="w-full bg-green-600 hover:bg-green-700 mt-2"
+                    size="lg"
+                  >
+                    🤝 Schedule Meetup
+                  </Button>
                   <div className="flex space-x-3">
                     <Button
                       onClick={handleAddToFavorites}
