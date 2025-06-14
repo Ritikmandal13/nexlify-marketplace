@@ -105,42 +105,11 @@ export default defineConfig(({ mode }) => ({
             sizes: '750x1334',
             type: 'image/png',
             form_factor: 'narrow'
-          },
-          {
-            src: '/splash-1080x1920.png',
-            sizes: '1080x1920',
-            type: 'image/png',
-            form_factor: 'narrow'
-          },
-          {
-            src: '/splash-1242x2208.png',
-            sizes: '1242x2208',
-            type: 'image/png',
-            form_factor: 'narrow'
-          },
-          {
-            src: '/splash-1125x2436.png',
-            sizes: '1125x2436',
-            type: 'image/png',
-            form_factor: 'narrow'
-          },
-          {
-            src: '/splash-1440x2560.png',
-            sizes: '1440x2560',
-            type: 'image/png',
-            form_factor: 'narrow'
-          },
-          {
-            src: '/splash-1536x2048.png',
-            sizes: '1536x2048',
-            type: 'image/png',
-            form_factor: 'wide'
           }
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,svg}', '**/icon-*.png'],
-        globIgnores: ['**/splash-*.png'], // Exclude large splash screens from caching
+        globPatterns: ['**/*.{js,css,html,ico,svg}', '**/icon-*.png', '**/splash-*.png'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
