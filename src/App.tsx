@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/components/ui/use-toast';
@@ -13,7 +13,6 @@ import SignUp from '@/pages/SignUp';
 import Marketplace from '@/pages/Marketplace';
 import CreateListing from '@/pages/CreateListing';
 import ListingDetail from '@/pages/ListingDetail';
-import Chats from '@/pages/Chats';
 import ChatDetail from '@/pages/ChatDetail';
 import EditListing from '@/pages/EditListing';
 import UserProfile from '@/components/auth/UserProfile';
@@ -25,6 +24,7 @@ import MyListings from "./pages/MyListings";
 import NotFound from "./pages/NotFound";
 import Favorites from '@/pages/Favorites';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { messaging, getToken, onMessage } from './firebase';
 
 const queryClient = new QueryClient();
 
@@ -34,47 +34,37 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+const VAPID_KEY = "BLPQAlH2qkGvcoK0P2EUTiYPyXMZ5BxE-Df3Up172nnUpZ0r7YWROFOfK2lr8GvDEbI8kgIepyqTFleckPay5zA";
+
 function App() {
   const { toast } = useToast();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
 
-  // Check if the app is running in standalone mode (PWA)
-  const isStandalone = () => {
+  // Memoize isStandalone function
+  const isStandalone = useCallback(() => {
     return window.matchMedia('(display-mode: standalone)').matches || 
            (window.navigator as any).standalone === true;
-  };
-
-  useEffect(() => {
-    if (!isStandalone()) {
-      const handleBeforeInstallPrompt = (e: Event) => {
-        e.preventDefault();
-        setDeferredPrompt(e as BeforeInstallPromptEvent);
-        setShowPwaPrompt(true);
-        console.log('beforeinstallprompt event fired and deferredPrompt set');
-      };
-      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    }
   }, []);
 
-  // Hide the banner if the app is installed (standalone mode) and listen for appinstalled event
-  useEffect(() => {
-    if (isStandalone()) {
-      setShowPwaPrompt(false);
-      setDeferredPrompt(null);
-    }
-    const handleAppInstalled = () => {
-      setShowPwaPrompt(false);
-      setDeferredPrompt(null);
-      console.log('App was installed');
-    };
-    window.addEventListener('appinstalled', handleAppInstalled);
-    return () => window.removeEventListener('appinstalled', handleAppInstalled);
+  // Memoize handleBeforeInstallPrompt
+  const handleBeforeInstallPrompt = useCallback((e: Event) => {
+    e.preventDefault();
+    setDeferredPrompt(e as BeforeInstallPromptEvent);
+    setShowPwaPrompt(true);
+    console.log('beforeinstallprompt event fired and deferredPrompt set');
   }, []);
 
-  const handleInstallClick = async () => {
+  // Memoize handleAppInstalled
+  const handleAppInstalled = useCallback(() => {
+    setShowPwaPrompt(false);
+    setDeferredPrompt(null);
+    console.log('App was installed');
+  }, []);
+
+  // Memoize handleInstallClick
+  const handleInstallClick = useCallback(async () => {
     console.log('Install button clicked');
     if (!deferredPrompt) {
       console.log('No deferredPrompt available');
@@ -91,7 +81,29 @@ function App() {
       setDeferredPrompt(null);
       setShowPwaPrompt(false);
     }
-  };
+  }, [deferredPrompt]);
+
+  // Memoize handleClosePrompt
+  const handleClosePrompt = useCallback(() => {
+    setShowPwaPrompt(false);
+    setDeferredPrompt(null);
+  }, []);
+
+  useEffect(() => {
+    if (!isStandalone()) {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }
+  }, [isStandalone, handleBeforeInstallPrompt]);
+
+  useEffect(() => {
+    if (isStandalone()) {
+      setShowPwaPrompt(false);
+      setDeferredPrompt(null);
+    }
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => window.removeEventListener('appinstalled', handleAppInstalled);
+  }, [isStandalone, handleAppInstalled]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -102,6 +114,99 @@ function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Register FCM service worker and listen for foreground messages
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then((registration) => {
+          console.log('FCM Service Worker registered with scope:', registration.scope);
+        })
+        .catch((err) => {
+          console.error('Service Worker registration failed:', err);
+        });
+    }
+
+    // Listen for foreground messages
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('Message received. ', payload);
+      
+      // Show notification when app is in foreground
+      if (payload.data) {
+        const title = payload.data.title || 'Nexlify';
+        const body = payload.data.body || '';
+        const icon = '/icon-192x192.png';
+        
+        // Show browser notification
+        if (Notification.permission === 'granted') {
+          const notification = new Notification(title, {
+            body,
+            icon,
+            badge: icon,
+            tag: 'nexlify-message', // Prevents duplicate notifications
+            data: payload.data
+          });
+          
+          // Handle notification click
+          notification.onclick = function() {
+            window.focus();
+            if (payload.data.url) {
+              window.location.href = payload.data.url;
+            }
+            notification.close();
+          };
+          
+          // Auto-close after 5 seconds
+          setTimeout(() => notification.close(), 5000);
+        }
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Request notification permission and send FCM token after login
+  useEffect(() => {
+    async function requestAndSendToken() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && session.access_token) {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+            console.log('FCM Token:', token);
+            if (token) {
+              fetch('/api/save-fcm-token', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ token, device_info: navigator.userAgent })
+              })
+              .then(response => {
+                if (response.ok) {
+                  console.log('FCM token sent to backend successfully!');
+                } else {
+                  console.error('Failed to send FCM token to backend.');
+                }
+              })
+              .catch(error => {
+                console.error('Error sending FCM token to backend:', error);
+              });
+            }
+          } else {
+            console.log('Notification permission not granted');
+          }
+        }
+      } catch (err) {
+        console.error('An error occurred while retrieving token. ', err);
+      }
+    }
+    requestAndSendToken();
+  }, [user]);
 
   return (
     <ThemeProvider>
@@ -130,7 +235,7 @@ function App() {
                   Install
                 </button>
                 <button
-                  onClick={() => { setShowPwaPrompt(false); setDeferredPrompt(null); }}
+                  onClick={handleClosePrompt}
                   className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full p-1 transition"
                   aria-label="Close"
                 >

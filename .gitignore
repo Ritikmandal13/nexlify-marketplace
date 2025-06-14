@@ -28,3 +28,7 @@ dist-ssr
 .env.local
 .env.development
 .env.production
+
+# Firebase sensitive files
+serviceAccountKey.json
+sendNotification.js

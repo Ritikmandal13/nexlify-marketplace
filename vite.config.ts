@@ -8,31 +8,155 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Nexlify',
+        name: 'Nexlify Marketplace',
         short_name: 'Nexlify',
-        description: 'Buy and Sell Locally',
-        theme_color: '#ffe04b',
-        background_color: '#ffe04b',
+        description: 'A modern, India-centric marketplace app',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
         display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
-            src: '/favicon.png',
-            sizes: '192x192',
+            src: '/icon-72x72.png',
+            sizes: '72x72',
             type: 'image/png',
+            purpose: 'any maskable'
           },
           {
-            src: '/favicon.png',
+            src: '/icon-96x96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-128x128.png',
+            sizes: '128x128',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-144x144.png',
+            sizes: '144x144',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-152x152.png',
+            sizes: '152x152',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-384x384.png',
+            sizes: '384x384',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-          },
+            purpose: 'any maskable'
+          }
         ],
+        screenshots: [
+          {
+            src: '/splash-320x480.png',
+            sizes: '320x480',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-640x960.png',
+            sizes: '640x960',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-640x1136.png',
+            sizes: '640x1136',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-750x1334.png',
+            sizes: '750x1334',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-1080x1920.png',
+            sizes: '1080x1920',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-1242x2208.png',
+            sizes: '1242x2208',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-1125x2436.png',
+            sizes: '1125x2436',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-1440x2560.png',
+            sizes: '1440x2560',
+            type: 'image/png',
+            form_factor: 'narrow'
+          },
+          {
+            src: '/splash-1536x2048.png',
+            sizes: '1536x2048',
+            type: 'image/png',
+            form_factor: 'wide'
+          }
+        ]
       },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          }
+        ]
+      }
     }),
   ].filter(Boolean),
   resolve: {

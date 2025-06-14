@@ -64,7 +64,7 @@ const ChatDetail = () => {
   }, [messages]);
 
   useEffect(() => {
-    const fetchChatData = async () => {
+    const fetchUserProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({
@@ -75,8 +75,22 @@ const ChatDetail = () => {
         navigate('/signin');
         return;
       }
-      setCurrentUser(user);
+      // Fetch the user's profile to get full_name
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('id', user.id)
+        .single();
+      if (error || !profile) {
+        setCurrentUser(user); // fallback to basic user
+        fetchChatData(user);
+      } else {
+        setCurrentUser({ ...user, full_name: profile.full_name, avatar_url: profile.avatar_url });
+        fetchChatData({ ...user, full_name: profile.full_name, avatar_url: profile.avatar_url });
+      }
+    };
 
+    const fetchChatData = async (user) => {
       // Fetch chat details
       const { data: chatData, error: chatError } = await supabase
         .from('chats')
@@ -163,7 +177,7 @@ const ChatDetail = () => {
       }
     };
 
-    fetchChatData();
+    fetchUserProfile();
 
     // Subscribe to new messages and is_read updates
     const subscription = supabase
@@ -209,7 +223,7 @@ const ChatDetail = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [chatId, navigate, toast, currentUser?.id]);
+  }, [chatId, navigate, toast]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,6 +264,18 @@ const ChatDetail = () => {
         chat_id: chatId,
         is_read: false,
         // Optionally add message_id, created_at, etc.
+      });
+      // Trigger push notification via backend
+      console.log('Sending notification with senderName:', currentUser.full_name);
+      await fetch('/api/send-message-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientUserId: recipientId,
+          messageText: newMessage.trim(),
+          senderName: currentUser.full_name,
+          chatId
+        })
       });
     }
 
