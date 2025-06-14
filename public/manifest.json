@@ -99,12 +99,6 @@
       "type": "image/png",
       "sizes": "1440x2560",
       "form_factor": "narrow"
-    },
-    {
-      "src": "/splash-1536x2048.png",
-      "type": "image/png",
-      "sizes": "1536x2048",
-      "form_factor": "wide"
     }
   ],
   "start_url": ".",
