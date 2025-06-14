@@ -73,7 +73,12 @@ export default async function handler(req, res) {
     });
 
     if (!upsertResponse.ok) {
-      console.error('Supabase upsert error:', await upsertResponse.text());
+      const errorText = await upsertResponse.text();
+      if (errorText.includes('duplicate key value')) {
+        // Token already exists, treat as success
+        return res.status(200).json({ message: 'Token already exists' });
+      }
+      console.error('Supabase upsert error:', errorText);
       return res.status(500).json({ message: 'Failed to save FCM token' });
     }
 
