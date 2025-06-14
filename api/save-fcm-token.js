@@ -1,8 +1,20 @@
-import jwt from 'jsonwebtoken';
-
 // Initialize Supabase (inline for Vercel compatibility)
 const SUPABASE_URL = 'https://spjvuhlgitqnthcvnpyb.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwanZ1aGxnaXRxbnRoY3ZucHliIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODI3NTAxOSwiZXhwIjoyMDYzODUxMDE5fQ.HHjRCn7Lib3sZbiHbLgipJspaF28IiLRSZECNv7qUxE';
+
+// Simple JWT decode function (without external dependency)
+function decodeJWT(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    throw new Error('Invalid JWT token');
+  }
+}
 
 export default async function handler(req, res) {
   // Add CORS headers
@@ -21,28 +33,28 @@ export default async function handler(req, res) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // Check for authorization header
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No auth token provided' });
-  }
-  const token = authHeader.split(' ')[1];
-
-  // Decode JWT to get user ID (sub)
-  let userId;
   try {
-    const { sub } = jwt.decode(token);
-    userId = sub;
-  } catch (err) {
-    return res.status(401).json({ message: 'Invalid auth token' });
-  }
+    // Check for authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No auth token provided' });
+    }
+    const token = authHeader.split(' ')[1];
 
-  const { token: fcmToken, device_info } = req.body;
-  if (!fcmToken) {
-    return res.status(400).json({ message: 'No FCM token provided' });
-  }
+    // Decode JWT to get user ID (sub)
+    let userId;
+    try {
+      const decoded = decodeJWT(token);
+      userId = decoded.sub;
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid auth token' });
+    }
 
-  try {
+    const { token: fcmToken, device_info } = req.body;
+    if (!fcmToken) {
+      return res.status(400).json({ message: 'No FCM token provided' });
+    }
+
     // Upsert FCM token using Supabase REST API
     const upsertResponse = await fetch(`${SUPABASE_URL}/rest/v1/user_fcm_tokens`, {
       method: 'POST',
@@ -65,7 +77,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ message: 'Failed to save FCM token' });
     }
 
+    console.log('FCM token saved successfully for user:', userId);
     res.status(200).json({ message: 'Token received' });
+    
   } catch (error) {
     console.error('Error saving FCM token:', error);
     res.status(500).json({ message: 'Failed to save FCM token', error: error.message });
