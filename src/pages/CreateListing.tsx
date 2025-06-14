@@ -172,7 +172,6 @@ const CreateListing = () => {
         seller_id: user.id,
         seller_name: user.user_metadata?.full_name || user.email,
         seller_email: user.email,
-        seller_avatar_url: userProfile?.avatar_url || null,
       };
 
       const { error } = await supabase.from('listings').insert(listingData);

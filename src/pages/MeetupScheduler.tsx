@@ -22,6 +22,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface Listing {
   id: string;
@@ -359,13 +360,19 @@ const MeetupScheduler = () => {
                                 Pay ₹{meetup.payment_amount} to {profileMap[meetup.seller_id]?.upi_id || 'Seller'}
                               </div>
                               {profileMap[meetup.seller_id]?.upi_id && (
-                                <Button
-                                  size="sm"
-                                  className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow"
-                                  onClick={() => window.open(getUpiDeepLink(profileMap[meetup.seller_id]?.upi_id!, meetup.payment_amount || 0, meetup.listing?.title || 'Nexlify Payment'), '_blank')}
-                                >
-                                  Pay Now
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow"
+                                    onClick={() => window.open(getUpiDeepLink(profileMap[meetup.seller_id]?.upi_id!, meetup.payment_amount || 0, meetup.listing?.title || 'Nexlify Payment'), '_blank')}
+                                  >
+                                    Pay Now
+                                  </Button>
+                                  <div className="mt-2 flex flex-col items-center">
+                                    <QRCodeSVG value={getUpiDeepLink(profileMap[meetup.seller_id]?.upi_id!, meetup.payment_amount || 0, meetup.listing?.title || 'Nexlify Payment')} size={128} />
+                                    <span className="text-xs text-gray-500 mt-1">Scan this QR code with any UPI app to pay</span>
+                                  </div>
+                                </>
                               )}
                               <AlertDialog open={confirmPayDialog === meetup.id} onOpenChange={open => setConfirmPayDialog(open ? meetup.id : null)}>
                                 <AlertDialogTrigger asChild>
