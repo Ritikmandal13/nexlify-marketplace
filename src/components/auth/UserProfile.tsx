@@ -23,6 +23,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   const [bio, setBio] = useState('');
   const [uploading, setUploading] = useState(false);
   const [upiId, setUpiId] = useState('');
+  const [totalEarned, setTotalEarned] = useState<number>(0);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -152,6 +153,25 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
       }
     }
   }, [userData]);
+
+  // Fetch total earned money
+  useEffect(() => {
+    const fetchTotalEarned = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('meetups')
+        .select('payment_amount')
+        .eq('seller_id', user.id)
+        .eq('payment_status', 'paid');
+      if (!error && data) {
+        const total = data.reduce((sum: number, m: any) => sum + (m.payment_amount || 0), 0);
+        setTotalEarned(total);
+      } else {
+        setTotalEarned(0);
+      }
+    };
+    if (isOpen && user) fetchTotalEarned();
+  }, [isOpen, user]);
 
   if (!isOpen || !user) return null;
 
@@ -304,134 +324,92 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md p-6 relative">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          <X size={24} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl shadow-2xl w-full max-w-md p-0 relative overflow-hidden">
+        {/* Close button */}
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 z-10">
+          <X size={28} />
         </button>
-
-        <div className="text-center mb-6">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+        {/* Profile Header */}
+        <div className="flex flex-col items-center pt-10 pb-6 px-6 bg-gradient-to-br from-blue-50/80 to-purple-50/80 dark:from-gray-800/80 dark:to-gray-900/80">
+          <div className="relative mb-3">
             {profilePic ? (
-              <img src={profilePic} alt="Profile" className="w-20 h-20 object-cover rounded-full" />
+              <img src={profilePic} alt="Profile" className="w-28 h-28 rounded-full object-cover border-4 border-blue-500 shadow-lg" />
             ) : (
-              <UserIcon className="text-white" size={32} />
+              <div className="w-28 h-28 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white text-5xl font-bold shadow-lg">
+                <UserIcon size={56} />
+              </div>
             )}
+            <Button
+              size="icon"
+              variant="outline"
+              className="absolute bottom-2 right-2 bg-white/80 dark:bg-gray-800/80 border border-gray-300 dark:border-gray-700 shadow hover:bg-blue-100 dark:hover:bg-gray-700"
+              onClick={() => setShowCompleteProfile(true)}
+            >
+              <Edit2 size={18} />
+            </Button>
           </div>
-          {isEditing ? (
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="text-xl font-bold text-center border-b-2 border-blue-500 focus:outline-none"
-            />
-          ) : (
-            <h2 className="text-2xl font-bold text-gray-900">{editName || 'No Name'}</h2>
-          )}
-          <div className="flex items-center justify-center mt-2">
-            <div className="flex items-center text-green-600">
-              <Shield size={16} className="mr-1" />
-              <span className="text-sm">Verified Student</span>
-            </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{editName || user.email}</h2>
+          <div className="text-sm text-gray-500 dark:text-gray-300 mb-2">{user.email}</div>
+        </div>
+        {/* Stats Section */}
+        <div className="flex justify-center gap-4 px-6 -mt-6 mb-4">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-green-400/80 to-blue-400/80 dark:from-green-700/80 dark:to-blue-700/80 rounded-xl px-4 py-2 shadow text-white font-semibold">
+            <Shield size={20} className="opacity-80" />
+            <span>Total Earned</span>
+            <span className="ml-2 text-lg">₹{totalEarned.toLocaleString('en-IN')}</span>
           </div>
         </div>
-
-        <div className="space-y-4">
-          <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-            <Mail className="text-gray-400 mr-3" size={20} />
+        {/* Info Section */}
+        <div className="space-y-3 px-6 pb-6">
+          <div className="flex items-center p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 shadow">
+            <Mail className="text-blue-500 mr-3" size={22} />
             <div>
-              <p className="text-sm text-gray-600">Email</p>
-              <p className="font-medium">{user.email}</p>
+              <p className="text-xs text-gray-500">Email</p>
+              <p className="font-medium text-gray-900 dark:text-white">{user.email}</p>
             </div>
           </div>
           {upiId && (
-            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-              <ImageIcon className="text-gray-400 mr-3" size={20} />
+            <div className="flex items-center p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 shadow">
+              <ImageIcon className="text-purple-500 mr-3" size={22} />
               <div>
-                <p className="text-sm text-gray-600">UPI ID</p>
-                <p className="font-medium">{upiId}</p>
+                <p className="text-xs text-gray-500">UPI ID</p>
+                <p className="font-medium text-gray-900 dark:text-white">{upiId}</p>
               </div>
             </div>
           )}
-          <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-            <GraduationCap className="text-gray-400 mr-3" size={20} />
-            <div className="flex-1">
-              <p className="text-sm text-gray-600">University</p>
-              <p className="font-medium">{university || '(Not set)'} </p>
+          <div className="flex items-center p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 shadow">
+            <GraduationCap className="text-green-500 mr-3" size={22} />
+            <div>
+              <p className="text-xs text-gray-500">University</p>
+              <p className="font-medium text-gray-900 dark:text-white">{university || '(Not set)'}</p>
             </div>
           </div>
-          <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-            <Info className="text-gray-400 mr-3" size={20} />
-            <div className="flex-1">
-              <p className="text-sm text-gray-600">Bio</p>
-              <p className="font-medium">{bio || '(Not set)'} </p>
+          <div className="flex items-center p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 shadow">
+            <Info className="text-blue-400 mr-3" size={22} />
+            <div>
+              <p className="text-xs text-gray-500">Bio</p>
+              <p className="font-medium text-gray-900 dark:text-white">{bio || '(Not set)'}</p>
             </div>
           </div>
         </div>
-
-        <div className="mt-6 space-y-3">
-          {isEditing ? (
-            <div className="flex space-x-3">
-              <Button
-                onClick={handleSave}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-                disabled={saving}
-              >
-                <Save size={16} className="mr-2" />
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-              <Button
-                onClick={() => setIsEditing(false)}
-                variant="outline"
-                className="flex-1"
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              onClick={() => setIsEditing(true)}
-              variant="outline"
-              className="w-full"
-            >
-              <Edit2 size={16} className="mr-2" />
-              Edit Name
-            </Button>
-          )}
-
+        {/* Actions */}
+        <div className="px-6 pb-6 flex flex-col gap-3">
           <Button
-            onClick={() => setShowCompleteProfile(true)}
-            variant="outline"
-            className="w-full"
-          >
-            <ImageIcon size={16} className="mr-2" />
-            Complete Profile
-          </Button>
-
-          <Button
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold shadow hover:from-blue-700 hover:to-purple-700 transition"
             onClick={handleSignOut}
-            variant="outline"
-            className="w-full text-red-600 border-red-200 hover:bg-red-50"
           >
-            Sign Out
+            <X size={18} className="mr-2" /> Sign Out
           </Button>
         </div>
-
-        {/* Complete Profile Modal */}
+        {/* Edit Profile Modal (reuse existing logic) */}
         {showCompleteProfile && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 relative">
-              <button
-                onClick={() => setShowCompleteProfile(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              >
-                <X size={24} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+              <button onClick={() => setShowCompleteProfile(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 z-10">
+                <X size={28} />
               </button>
-              <h2 className="text-xl font-bold mb-4 text-center">Complete Your Profile</h2>
+              <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Edit Profile</h2>
               <div className="space-y-4">
                 <div className="flex flex-col items-center">
                   <label htmlFor="profile-pic-upload" className="cursor-pointer">
@@ -492,19 +470,6 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
             </div>
           </div>
         )}
-
-        {/* Add View My Listings button at the bottom */}
-        <div className="mt-6 flex justify-center">
-          <Button
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded shadow hover:from-blue-700 hover:to-purple-700 transition"
-            onClick={() => {
-              onClose();
-              navigate('/my-listings');
-            }}
-          >
-            View My Listings
-          </Button>
-        </div>
       </div>
     </div>
   );

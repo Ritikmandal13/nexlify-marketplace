@@ -10,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/lib/supabaseClient';
 import Navigation from '@/components/Navigation';
 import { useToast } from '@/components/ui/use-toast';
-import { CalendarDays, MapPin, StickyNote, Clock, User2, CheckCircle, XCircle, Loader2, Image as ImageIcon, ArrowRight, IndianRupee, Check, Send } from 'lucide-react';
+import { CalendarDays, MapPin, StickyNote, Clock, User2, CheckCircle, XCircle, Loader2, Image as ImageIcon, ArrowRight, IndianRupee, Check, Send, X, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -30,6 +30,8 @@ interface Listing {
   images?: string[];
   price?: number;
   location?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface Meetup {
@@ -70,6 +72,7 @@ const MeetupScheduler = () => {
   const [otherProfiles, setOtherProfiles] = useState<Record<string, Profile>>({});
   const [profileMap, setProfileMap] = useState<Record<string, Profile>>({});
   const [confirmPayDialog, setConfirmPayDialog] = useState<string | null>(null);
+  const [showQrModal, setShowQrModal] = useState<string | null>(null);
   const form = useForm({
     defaultValues: {
       listing_id: preselectedListingId || '',
@@ -97,13 +100,13 @@ const MeetupScheduler = () => {
       // Fetch listings where user is the seller
       const { data: myListings } = await supabase
         .from('listings')
-        .select('id, title, images, price, location')
+        .select('id, title, images, price, location, latitude, longitude')
         .eq('seller_id', user.id);
       setListings(myListings || []);
-      // Fetch meetups where user is buyer or seller, include listing images
+      // Fetch meetups where user is buyer or seller, include listing images and coordinates
       const { data: myMeetups } = await supabase
         .from('meetups')
-        .select('*, listing:listing_id(id, title, images, price, location)')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order('scheduled_time', { ascending: false });
       setMeetups(myMeetups || []);
@@ -162,7 +165,7 @@ const MeetupScheduler = () => {
       setLoading(true);
       const { data: myMeetups } = await supabase
         .from('meetups')
-        .select('*, listing:listing_id(id, title, images, price, location)')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
         .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
         .order('scheduled_time', { ascending: false });
       setMeetups(myMeetups || []);
@@ -184,7 +187,7 @@ const MeetupScheduler = () => {
       // Refresh meetups
       const { data: myMeetups } = await supabase
         .from('meetups')
-        .select('*, listing:listing_id(id, title, images, price, location)')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
         .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
         .order('scheduled_time', { ascending: false });
       setMeetups(myMeetups || []);
@@ -213,7 +216,7 @@ const MeetupScheduler = () => {
       // Refresh meetups
       const { data: myMeetups } = await supabase
         .from('meetups')
-        .select('*, listing:listing_id(id, title, images, price, location)')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
         .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
         .order('scheduled_time', { ascending: false });
       setMeetups(myMeetups || []);
@@ -238,7 +241,7 @@ const MeetupScheduler = () => {
       // Refresh meetups
       const { data: myMeetups } = await supabase
         .from('meetups')
-        .select('*, listing:listing_id(id, title, images, price, location)')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
         .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
         .order('scheduled_time', { ascending: false });
       setMeetups(myMeetups || []);
@@ -248,6 +251,27 @@ const MeetupScheduler = () => {
   const getUpiDeepLink = (upiId: string, amount: number, note: string) => {
     // UPI deep link format
     return `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(note)}&am=${amount}&cu=INR`;
+  };
+
+  const deleteMeetup = async (meetupId: string) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from('meetups')
+      .delete()
+      .eq('id', meetupId);
+    setLoading(false);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Meetup Deleted', description: 'The meetup has been deleted.' });
+      // Refresh meetups
+      const { data: myMeetups } = await supabase
+        .from('meetups')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
+        .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+        .order('scheduled_time', { ascending: false });
+      setMeetups(myMeetups || []);
+    }
   };
 
   return (
@@ -333,6 +357,26 @@ const MeetupScheduler = () => {
                           <div className="flex items-center text-gray-600 dark:text-gray-300 mb-2">
                             <MapPin size={16} className="mr-1" />
                             <span>{meetup.listing.location}</span>
+                            {/* Go to Location button for buyers if coordinates exist */}
+                            {isBuyer && meetup.listing?.latitude && meetup.listing?.longitude && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="ml-2 text-blue-600 border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900"
+                                onClick={() => {
+                                  const lat = meetup.listing!.latitude;
+                                  const lng = meetup.listing!.longitude;
+                                  const url =
+                                    /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
+                                      ? `http://maps.apple.com/?daddr=${lat},${lng}`
+                                      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                                  window.open(url, '_blank');
+                                }}
+                                title="Open in Maps"
+                              >
+                                <MapPin size={16} className="mr-1" /> Go to Location
+                              </Button>
+                            )}
                           </div>
                         )}
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 mb-1">
@@ -357,22 +401,16 @@ const MeetupScheduler = () => {
                             <>
                               <div className="flex items-center gap-2 text-blue-600 font-semibold">
                                 <IndianRupee size={18} />
-                                Pay ₹{meetup.payment_amount} to {profileMap[meetup.seller_id]?.upi_id || 'Seller'}
+                                Pay to {profileMap[meetup.seller_id]?.upi_id || 'Seller'} via UPI
                               </div>
                               {profileMap[meetup.seller_id]?.upi_id && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow"
-                                    onClick={() => window.open(getUpiDeepLink(profileMap[meetup.seller_id]?.upi_id!, meetup.payment_amount || 0, meetup.listing?.title || 'Nexlify Payment'), '_blank')}
-                                  >
-                                    Pay Now
-                                  </Button>
-                                  <div className="mt-2 flex flex-col items-center">
-                                    <QRCodeSVG value={getUpiDeepLink(profileMap[meetup.seller_id]?.upi_id!, meetup.payment_amount || 0, meetup.listing?.title || 'Nexlify Payment')} size={128} />
-                                    <span className="text-xs text-gray-500 mt-1">Scan this QR code with any UPI app to pay</span>
-                                  </div>
-                                </>
+                                <Button
+                                  size="sm"
+                                  className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow mt-2"
+                                  onClick={() => window.open(`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}`, '_blank')}
+                                >
+                                  Pay via UPI App
+                                </Button>
                               )}
                               <AlertDialog open={confirmPayDialog === meetup.id} onOpenChange={open => setConfirmPayDialog(open ? meetup.id : null)}>
                                 <AlertDialogTrigger asChild>
@@ -398,22 +436,55 @@ const MeetupScheduler = () => {
                                 </AlertDialogContent>
                               </AlertDialog>
                             </>
+                          ) : isSeller ? (
+                            <>
+                              <div className="flex flex-col gap-2">
+                                <Button
+                                  size="sm"
+                                  className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow"
+                                  onClick={() => window.open(`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}`, '_blank')}
+                                >
+                                  Request Payment (UPI Link)
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="font-semibold shadow"
+                                  onClick={() => setShowQrModal(meetup.id)}
+                                >
+                                  Show QR Code
+                                </Button>
+                              </div>
+                              {showQrModal === meetup.id && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                                  <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8 relative flex flex-col items-center">
+                                    <button onClick={() => setShowQrModal(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 z-10">
+                                      <X size={28} />
+                                    </button>
+                                    <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">UPI QR Code</h2>
+                                    <QRCodeSVG value={`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}`} size={180} />
+                                    <div className="mt-3 text-xs text-gray-500 text-center">Show this QR code to the buyer. They will scan and enter the amount manually.</div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
                           ) : (
                             <div className="flex items-center gap-2 text-yellow-600 font-semibold">
                               <Send size={18} /> Payment Requested
                             </div>
                           )
                         ) : (
-                          isSeller && meetup.status === 'accepted' && (
+                          isSeller ? (
                             <Button
                               size="sm"
                               className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold shadow"
                               onClick={() => requestPayment(meetup)}
-                              disabled={meetup.payment_status === 'requested' || meetup.payment_status === 'paid'}
+                              disabled={meetup.status === 'cancelled' || meetup.payment_status === 'requested' || meetup.payment_status === 'paid'}
+                              title={meetup.status === 'cancelled' ? 'Deal is cancelled' : ''}
                             >
                               Request Payment
                             </Button>
-                          )
+                          ) : null
                         )}
                         {/* Show payment amount if set */}
                         {meetup.payment_amount && (
@@ -445,6 +516,19 @@ const MeetupScheduler = () => {
                           {(isSeller || isBuyer) && meetup.status === 'accepted' && scheduledDate < now && (
                             <Button size="sm" className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow" onClick={() => updateMeetupStatus(meetup.id, 'completed')}>Mark as Completed</Button>
                           )}
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="shadow"
+                            title="Delete Meetup"
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to delete this meetup? This action cannot be undone.')) {
+                                deleteMeetup(meetup.id);
+                              }
+                            }}
+                          >
+                            <Trash2 size={18} />
+                          </Button>
                         </div>
                       </div>
                     </div>

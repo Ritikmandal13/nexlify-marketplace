@@ -25,6 +25,8 @@ interface Listing {
   category: string;
   condition: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   images: string[];
   seller_id: string;
   seller_name: string;
@@ -42,12 +44,17 @@ const ListingDetail = () => {
   const [isOwner, setIsOwner] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviews, setReviews] = useState<{ rating: number }[]>([]);
 
   useEffect(() => {
     const fetchListing = async () => {
       if (!id) return;
       setIsLoading(true);
-      const { data, error } = await supabase.from('listings').select('*').eq('id', id).single();
+      const { data, error } = await supabase
+        .from('listings')
+        .select('*, latitude, longitude')
+        .eq('id', id)
+        .single();
       if (error) {
         setListing(null);
       } else {
@@ -59,6 +66,19 @@ const ListingDetail = () => {
       setIsLoading(false);
     };
     fetchListing();
+    // Fetch seller reviews
+    const fetchReviews = async () => {
+      if (!id) return;
+      // Wait for listing to load
+      const { data: listingData } = await supabase.from('listings').select('seller_id').eq('id', id).single();
+      if (!listingData) return;
+      const { data: reviewData } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('seller_id', listingData.seller_id);
+      setReviews(reviewData || []);
+    };
+    fetchReviews();
   }, [id]);
 
   if (isLoading) {
@@ -194,185 +214,202 @@ const ListingDetail = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="mr-4"
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-2xl font-bold">Item Details</h1>
-        </div>
+  // Calculate average rating and review count
+  const reviewCount = reviews.length;
+  const averageRating = reviewCount > 0 ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewCount).toFixed(1) : null;
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Image Gallery */}
-          <div>
-            <div className="relative mb-4">
-              <img
-                src={listing.images[currentImageIndex] || '/placeholder.svg'}
-                alt={listing.title}
-                className="w-full h-96 object-cover rounded-lg"
-              />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Button
+          variant="ghost"
+          className="mb-6"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="mr-2" /> Back
+        </Button>
+        
+        {listing && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left column - Images */}
+            <div className="space-y-4">
+              <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <img
+                  src={listing.images[currentImageIndex]}
+                  alt={listing.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
               {listing.images.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                  {listing.images.map((_, index) => (
+                <div className="grid grid-cols-4 gap-2">
+                  {listing.images.map((image, index) => (
                     <button
                       key={index}
                       onClick={() => setCurrentImageIndex(index)}
-                      className={`w-3 h-3 rounded-full ${
-                        index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                      className={`relative aspect-square rounded-lg overflow-hidden ${
+                        currentImageIndex === index ? 'ring-2 ring-blue-500' : ''
                       }`}
-                    />
+                    >
+                      <img
+                        src={image}
+                        alt={`${listing.title} - Image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
                   ))}
                 </div>
               )}
             </div>
-            
-            {listing.images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
-                {listing.images.map((image, index) => (
-                  <img
-                    key={index}
-                    src={image}
-                    alt={`${listing.title} ${index + 1}`}
-                    className={`h-20 object-cover rounded cursor-pointer ${
-                      index === currentImageIndex ? 'ring-2 ring-blue-500' : ''
-                    }`}
-                    onClick={() => setCurrentImageIndex(index)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* Item Details */}
-          <div>
-            <div className="flex justify-between items-start mb-4">
+            {/* Right column - Details */}
+            <div className="space-y-6">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">{listing.title}</h1>
-                <div className="flex items-center space-x-3 mb-4">
-                  <Badge className="bg-green-500 text-white capitalize">
-                    {listing.condition}
-                  </Badge>
-                  <Badge variant="secondary" className="capitalize">
-                    {listing.category}
-                  </Badge>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  {listing.title}
+                </h1>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  ₹{listing.price.toLocaleString('en-IN')}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">₹{listing.price.toLocaleString('en-IN')}</div>
+
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                <MapPin size={16} />
+                <span>{listing.location}</span>
+                {listing.latitude && listing.longitude && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-2 text-blue-600 border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900"
+                    onClick={() => {
+                      const url =
+                        /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
+                          ? `http://maps.apple.com/?daddr=${listing.latitude},${listing.longitude}`
+                          : `https://www.google.com/maps/dir/?api=1&destination=${listing.latitude},${listing.longitude}`;
+                      window.open(url, '_blank');
+                    }}
+                    title="Open in Maps"
+                  >
+                    <MapPin size={16} className="mr-1" /> Go to Location
+                  </Button>
+                )}
               </div>
-            </div>
 
-            <div className="flex items-center text-gray-600 mb-6">
-              <MapPin size={16} className="mr-2" />
-              <span>{listing.location}</span>
-            </div>
+              <div className="flex items-center text-gray-600 mb-6">
+                <Badge className="bg-green-500 text-white capitalize">
+                  {listing.condition}
+                </Badge>
+                <Badge variant="secondary" className="capitalize">
+                  {listing.category}
+                </Badge>
+              </div>
 
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-2">Description</h3>
-              <p className="text-gray-700 leading-relaxed">{listing.description}</p>
-            </div>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-2">Description</h3>
+                <p className="text-gray-700 leading-relaxed">{listing.description}</p>
+              </div>
 
-            {/* Seller Info */}
-            <Card className="mb-6">
-              <CardContent className="p-4">
-                <h3 className="text-lg font-semibold mb-3">Seller Information</h3>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    {listing.seller_avatar_url ? (
-                      <img
-                        src={
-                          listing.seller_avatar_url.startsWith('http')
-                            ? listing.seller_avatar_url
-                            : `https://spjvuhlgitqnthcvnpyb.supabase.co/storage/v1/object/public/avatars/${listing.seller_avatar_url}`
-                        }
-                        alt={listing.seller_name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
-                        {(listing.seller_name || 'U').charAt(0)}
-                      </div>
-                    )}
-                    <div className="ml-3">
-                      <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Star size={14} className="text-yellow-400 fill-current mr-1" />
-                        4.8 (23 reviews)
+              {/* Seller Info */}
+              <Card className="mb-6">
+                <CardContent className="p-4">
+                  <h3 className="text-lg font-semibold mb-3">Seller Information</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {listing.seller_avatar_url ? (
+                        <img
+                          src={
+                            listing.seller_avatar_url.startsWith('http')
+                              ? listing.seller_avatar_url
+                              : `https://spjvuhlgitqnthcvnpyb.supabase.co/storage/v1/object/public/avatars/${listing.seller_avatar_url}`
+                          }
+                          alt={listing.seller_name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
+                          {(listing.seller_name || 'U').charAt(0)}
+                        </div>
+                      )}
+                      <div className="ml-3">
+                        <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <Star size={14} className="text-yellow-400 fill-current mr-1" />
+                          {averageRating ? (
+                            <>
+                              {averageRating} ({reviewCount} review{reviewCount !== 1 ? 's' : ''})
+                            </>
+                          ) : (
+                            <>No reviews yet</>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* Action Buttons */}
-            <div className="space-y-4">
-              {isOwner ? (
-                <div className="flex space-x-3">
-                  <Button
-                    onClick={() => navigate(`/edit-listing/${listing.id}`)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                    size="lg"
-                  >
-                    <Edit size={16} className="mr-2" />
-                    Edit Listing
-                  </Button>
-                  <Button
-                    onClick={() => setShowDeleteDialog(true)}
-                    variant="destructive"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    <Trash2 size={16} className="mr-2" />
-                    Delete Listing
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <Button 
-                    onClick={handleMessageSeller} 
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    size="lg"
-                  >
-                    <MessageCircle size={16} className="mr-2" />
-                    Message Seller
-                  </Button>
-                  <Button
-                    onClick={() => navigate(`/meetups/schedule?listingId=${listing.id}`)}
-                    className="w-full bg-green-600 hover:bg-green-700 mt-2"
-                    size="lg"
-                  >
-                    🤝 Schedule Meetup
-                  </Button>
+              {/* Action Buttons */}
+              <div className="space-y-4">
+                {isOwner ? (
                   <div className="flex space-x-3">
                     <Button
-                      onClick={handleAddToFavorites}
-                      variant="outline"
-                      className="flex-1"
+                      onClick={() => navigate(`/edit-listing/${listing.id}`)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      size="lg"
                     >
-                      <Heart size={16} className="mr-2" />
-                      Save
+                      <Edit size={16} className="mr-2" />
+                      Edit Listing
                     </Button>
-                    <Button variant="outline" className="flex-1">
-                      <Share size={16} className="mr-2" />
-                      Share
+                    <Button
+                      onClick={() => setShowDeleteDialog(true)}
+                      variant="destructive"
+                      className="flex-1"
+                      size="lg"
+                    >
+                      <Trash2 size={16} className="mr-2" />
+                      Delete Listing
                     </Button>
                   </div>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <Button 
+                      onClick={handleMessageSeller} 
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      size="lg"
+                    >
+                      <MessageCircle size={16} className="mr-2" />
+                      Message Seller
+                    </Button>
+                    <Button
+                      onClick={() => navigate(`/meetups/schedule?listingId=${listing.id}`)}
+                      className="w-full bg-green-600 hover:bg-green-700 mt-2"
+                      size="lg"
+                    >
+                      🤝 Schedule Meetup
+                    </Button>
+                    <div className="flex space-x-3">
+                      <Button
+                        onClick={handleAddToFavorites}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <Heart size={16} className="mr-2" />
+                        Save
+                      </Button>
+                      <Button variant="outline" className="flex-1">
+                        <Share size={16} className="mr-2" />
+                        Share
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
 
-            <div className="mt-6 text-sm text-gray-500">
-              Posted {new Date(listing.created_at).toLocaleDateString()}
+              <div className="mt-6 text-sm text-gray-500">
+                Posted {new Date(listing.created_at).toLocaleDateString()}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

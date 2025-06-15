@@ -192,36 +192,26 @@ const Marketplace = () => {
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold text-gray-900">Marketplace</h1>
-              <Button onClick={handleCreateListing} className="bg-blue-600 hover:bg-blue-700">
-                <Plus size={16} className="mr-2" />
-                Sell Item
-              </Button>
             </div>
+          </div>
+        </div>
 
-            {/* Search and Filters */}
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                <Input
-                  placeholder="Search items..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter size={16} className="text-gray-500" />
-                <select
-                  className="px-3 py-2 border border-gray-300 rounded-md"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                >
-                  {categories.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+        {/* Category Bar */}
+        <div className="w-full overflow-x-auto py-2 mb-4">
+          <div className="flex gap-2 min-w-max">
+            {categories.map(cat => (
+              <button
+                key={cat.value}
+                className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition border border-gray-200 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
+                  ${selectedCategory === cat.value
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow'
+                    : 'bg-gray-100 text-gray-800 hover:bg-blue-50'}
+                `}
+                onClick={() => setSelectedCategory(cat.value)}
+              >
+                {cat.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -230,18 +220,44 @@ const Marketplace = () => {
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(8)].map((_, i) => (
-                <Skeleton key={i} className="h-80 w-full rounded-lg" />
+                <Card key={i} className="overflow-hidden">
+                  <Skeleton className="h-48 w-full" />
+                  <CardContent className="p-4 space-y-4">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-8 w-20" />
+                      <Skeleton className="h-6 w-24" />
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           ) : filteredListings.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-gray-500 mb-4">
-                {listings.length === 0 ? 'No listings yet' : 'No items match your search'}
+            <div className="text-center py-12 bg-white rounded-lg shadow-sm border">
+              <div className="max-w-md mx-auto">
+                <div className="text-gray-500 mb-4 text-lg">
+                  {listings.length === 0 ? (
+                    <>
+                      <p className="font-medium text-gray-900 mb-2">Welcome to Nexlify Marketplace!</p>
+                      <p className="text-gray-600">Be the first to list an item and start trading with your college community.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-gray-900 mb-2">No matching items found</p>
+                      <p className="text-gray-600">Try adjusting your search or filters to find what you're looking for.</p>
+                    </>
+                  )}
+                </div>
+                <Button 
+                  onClick={handleCreateListing} 
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  <Plus size={16} className="mr-2" />
+                  {listings.length === 0 ? 'Create First Listing' : 'Create New Listing'}
+                </Button>
               </div>
-              <Button onClick={handleCreateListing} variant="outline">
-                <Plus size={16} className="mr-2" />
-                Create First Listing
-              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -281,7 +297,7 @@ const Marketplace = () => {
                             alt={listing.seller_name + ' avatar'}
                             className="w-8 h-8 rounded-full object-cover"
                             onError={(e) => {
-                              e.currentTarget.src = '';
+                              e.currentTarget.src = '/placeholder.svg';
                             }}
                           />
                         ) : (
@@ -291,13 +307,9 @@ const Marketplace = () => {
                         )}
                         <span className="ml-2 text-sm text-gray-700">{listing.seller_name || 'Unknown'}</span>
                       </div>
-                      <div className="flex items-center">
-                        <Star size={14} className="text-yellow-400 fill-current" aria-label="Rating star" />
-                        <span className="ml-1 text-sm text-gray-600">4.8</span>
-                      </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="text-lg font-bold text-gray-900">${listing.price}</div>
+                      <div className="text-lg font-bold text-gray-900">₹{listing.price.toLocaleString('en-IN')}</div>
                       <div className="flex items-center text-sm text-gray-500">
                         <MapPin size={14} className="mr-1" aria-label="Location" />
                         {listing.location}

@@ -27,6 +27,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { messaging, getToken, onMessage } from './firebase';
 import MeetupScheduler from './pages/MeetupScheduler';
 import ScheduleMeetup from './pages/ScheduleMeetup';
+import ChatBot from '@/components/ChatBot';
 
 const queryClient = new QueryClient();
 
@@ -123,6 +124,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <ChatBot />
           {/* PWA Install Banner */}
           {showPwaPrompt && deferredPrompt && (
             <div className="fixed top-6 left-0 right-0 z-[9999] flex justify-center animate-slideDown">

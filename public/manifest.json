@@ -122,5 +122,9 @@
       "url": "/my-listings",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
-  ]
+  ],
+  "permissions": ["geolocation"],
+  "related_applications": [],
+  "scope": "/",
+  "display_override": ["window-controls-overlay"]
 } 

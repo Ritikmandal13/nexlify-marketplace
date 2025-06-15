@@ -12,22 +12,98 @@ const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [location, setLocation] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [hasPendingMeetups, setHasPendingMeetups] = useState(false);
+  const [pendingMeetupCount, setPendingMeetupCount] = useState(0);
 
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user as AuthUser | null);
+      if (user) {
+        // Fetch avatar_url from profiles
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single();
+        if (data && data.avatar_url) {
+          if (data.avatar_url.startsWith('http')) {
+            setAvatarUrl(data.avatar_url);
+          } else {
+            const { data: publicUrlData } = supabase.storage
+              .from('avatars')
+              .getPublicUrl(data.avatar_url);
+            setAvatarUrl(publicUrlData.publicUrl);
+          }
+        } else {
+          setAvatarUrl(null);
+        }
+      } else {
+        setAvatarUrl(null);
+      }
     };
     getUser();
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user as AuthUser | null);
+      if (session?.user) {
+        // Fetch avatar_url on auth state change
+        supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data && data.avatar_url) {
+              if (data.avatar_url.startsWith('http')) {
+                setAvatarUrl(data.avatar_url);
+              } else {
+                const { data: publicUrlData } = supabase.storage
+                  .from('avatars')
+                  .getPublicUrl(data.avatar_url);
+                setAvatarUrl(publicUrlData.publicUrl);
+              }
+            } else {
+              setAvatarUrl(null);
+            }
+          });
+      } else {
+        setAvatarUrl(null);
+      }
     });
     return () => {
       listener?.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    // Fetch pending meetups for flag
+    const fetchPendingMeetups = async (userId: string) => {
+      const { data, error } = await supabase
+        .from('meetups')
+        .select('id')
+        .eq('seller_id', userId)
+        .eq('status', 'pending');
+      if (!error && data) {
+        setHasPendingMeetups(data.length > 0);
+        setPendingMeetupCount(data.length);
+      } else {
+        setHasPendingMeetups(false);
+        setPendingMeetupCount(0);
+      }
+    };
+    if (user) {
+      fetchPendingMeetups(user.id);
+    } else {
+      setHasPendingMeetups(false);
+      setPendingMeetupCount(0);
+    }
+  }, [user]);
 
   const handleProfileClick = () => {
     setIsProfileOpen(true);
@@ -43,20 +119,105 @@ const Navigation = () => {
     navigate('/');
   };
 
+  const handleSearch = () => {
+    navigate(`/marketplace?search=${encodeURIComponent(searchTerm)}&location=${encodeURIComponent(location)}`);
+  };
+
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-lg sticky top-0 z-50 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="flex items-center h-16 w-full relative">
             {/* Logo */}
-            <div className="flex items-center">
+            <div className="flex items-center flex-shrink-0 z-10">
               <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Nexlify
               </div>
             </div>
+            {/* Search Icon (always visible, right of logo) */}
+            <div className="flex-1 flex items-center justify-end z-10 gap-2">
+              {/* Show Sign In button left of search if not logged in */}
+              {!user && (
+                <Button
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg shadow hover:from-blue-700 hover:to-purple-700 transition text-sm md:text-base"
+                  onClick={() => navigate('/signin')}
+                >
+                  <User size={18} className="mr-2" /> Sign In
+                </Button>
+              )}
+              <Button
+                className="rounded-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white p-2 shadow"
+                onClick={() => setSearchOpen(true)}
+                size="icon"
+                aria-label="Open search"
+              >
+                <Search size={20} />
+              </Button>
+              {/* Hamburger menu button (always in header row) */}
+              <div className="md:hidden ml-2 flex items-center relative">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                  {hasPendingMeetups && (
+                    <span className="absolute -top-1 -right-1">
+                      <Badge variant="destructive" className="rounded-full px-1.5 py-0.5 text-[10px] h-4 w-4 flex items-center justify-center animate-pulse">
+                        {/* Red dot or count */}
+                        {pendingMeetupCount > 0 ? pendingMeetupCount : ''}
+                      </Badge>
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </div>
+            {/* Expanded Search Overlay (floating, compact, modern) */}
+            {searchOpen && (
+              <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
+                <div
+                  className="mt-6 w-full max-w-sm bg-white dark:bg-gray-900 rounded-full shadow-lg flex items-center px-4 py-2 relative"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <Search className="text-gray-400 mr-2" size={18} />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search for items, categories..."
+                    className="flex-1 border-none outline-none bg-transparent text-base"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { handleSearch(); setSearchOpen(false); }
+                      if (e.key === 'Escape') setSearchOpen(false);
+                    }}
+                  />
+                  <Button
+                    className="rounded-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white p-2 ml-1"
+                    onClick={() => { handleSearch(); setSearchOpen(false); }}
+                    size="icon"
+                    aria-label="Submit search"
+                  >
+                    <Search size={18} />
+                  </Button>
+                  <Button
+                    className="rounded-full text-gray-400 hover:text-gray-700 p-2 ml-1"
+                    variant="ghost"
+                    onClick={() => setSearchOpen(false)}
+                    size="icon"
+                    aria-label="Close search"
+                  >
+                    <X size={18} />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
+          <div className="flex-1 flex items-center justify-end">
+            {/* Desktop Navigation (centered on desktop) */}
+            <div className="hidden md:flex items-center space-x-8 mr-4">
               <a href="#discover" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                 Discover
               </a>
@@ -85,15 +246,6 @@ const Navigation = () => {
                 </div>
               ) : (
                 <>
-                  <Link to="/signin">
-                    <Button 
-                      variant="outline" 
-                      className="flex items-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      <User size={16} />
-                      Sign In
-                    </Button>
-                  </Link>
                   <Link to="/signup">
                     <Button 
                       className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 dark:from-blue-500 dark:to-purple-500 dark:hover:from-blue-600 dark:hover:to-purple-600"
@@ -104,128 +256,121 @@ const Navigation = () => {
                 </>
               )}
             </div>
-
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="dark:text-gray-200 dark:hover:bg-gray-700"
-              >
-                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </Button>
-            </div>
           </div>
+        </div>
 
-          {/* Mobile Navigation */}
-          {isMenuOpen && (
-            <div className={`fixed inset-0 bg-black bg-opacity-50 z-40 ${isMenuOpen ? 'block' : 'hidden'}`} onClick={closeMenu}>
-              <div className={`fixed inset-y-0 right-0 w-64 bg-white dark:bg-gray-800 shadow-lg z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="p-4">
-                  <button onClick={closeMenu} className="absolute top-4 right-4 dark:text-gray-200">
-                    <X size={24} />
-                  </button>
-                  <div className="mt-8 space-y-4">
+        {/* Mobile Navigation */}
+        {isMenuOpen && (
+          <div
+            className={`fixed inset-0 z-40 flex justify-end items-stretch bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${isMenuOpen ? 'opacity-100' : 'opacity-0'}`}
+            onClick={closeMenu}
+          >
+            <div
+              className={`relative w-72 max-w-full h-full bg-white/90 dark:bg-gray-900/90 rounded-l-2xl shadow-2xl flex flex-col p-0 animate-slideInRight`}
+              onClick={e => e.stopPropagation()}
+            >
+              <button onClick={closeMenu} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 z-10">
+                <X size={28} />
+              </button>
+              {/* User Info */}
+              {user && (
+                <div className="flex flex-col items-center gap-2 pt-10 pb-6 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50/60 to-purple-50/60 dark:from-gray-800/60 dark:to-gray-900/60">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-blue-400 shadow" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+                      {(user.user_metadata?.full_name || user.email || 'U').charAt(0)}
+                    </div>
+                  )}
+                  <div className="font-semibold text-gray-900 dark:text-white text-lg">{(user.user_metadata?.full_name || user.email || '').split(' ')[0]}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+                </div>
+              )}
+              <div className="flex flex-col gap-2 px-6 py-8">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-base font-semibold flex items-center gap-3 dark:text-gray-200 dark:hover:bg-gray-800 hover:bg-blue-50 dark:hover:text-blue-400 transition"
+                  onClick={() => { navigate('/favorites'); closeMenu(); }}
+                >
+                  <Heart size={22} className="mr-1" /> Favorites
+                </Button>
+                {user ? (
+                  <>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                      onClick={() => {
-                        navigate('/favorites');
-                        closeMenu();
-                      }}
+                      className="w-full justify-start text-base font-semibold flex items-center gap-3 dark:text-gray-200 dark:hover:bg-gray-800 hover:bg-blue-50 dark:hover:text-blue-400 transition"
+                      onClick={() => { navigate('/create-listing'); closeMenu(); }}
                     >
-                      <Heart size={20} className="mr-2" />
-                      Favorites
+                      <Plus size={22} className="mr-1" /> Create Listing
                     </Button>
-                    {user ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                          onClick={() => {
-                            navigate('/create-listing');
-                            closeMenu();
-                          }}
-                        >
-                          <Plus size={20} className="mr-2" />
-                          Create Listing
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                          onClick={() => {
-                            navigate('/meetups');
-                            closeMenu();
-                          }}
-                        >
-                          <CalendarDays size={20} className="mr-2" />
-                          Meetups
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                          onClick={() => {
-                            navigate('/my-listings');
-                            closeMenu();
-                          }}
-                        >
-                          <ShoppingBag size={20} className="mr-2" />
-                          My Listings
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-red-600 dark:text-red-400 dark:hover:bg-gray-700"
-                          onClick={handleSignOut}
-                        >
-                          Sign Out
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start dark:text-gray-200 dark:hover:bg-gray-700"
-                        onClick={() => {
-                          navigate('/signin');
-                          closeMenu();
-                        }}
-                      >
-                        <User size={20} className="mr-2" />
-                        Sign In
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-base font-semibold flex items-center gap-3 dark:text-gray-200 dark:hover:bg-gray-800 hover:bg-blue-50 dark:hover:text-blue-400 transition relative"
+                      onClick={() => { navigate('/meetups'); closeMenu(); }}
+                    >
+                      <CalendarDays size={22} className="mr-1" /> Meetups
+                      {hasPendingMeetups && (
+                        <span className="absolute left-28 top-1">
+                          <Badge variant="destructive" className="rounded-full px-1.5 py-0.5 text-[10px] h-4 w-4 flex items-center justify-center animate-pulse">
+                            {pendingMeetupCount > 0 ? pendingMeetupCount : ''}
+                          </Badge>
+                        </span>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-base font-semibold flex items-center gap-3 dark:text-gray-200 dark:hover:bg-gray-800 hover:bg-blue-50 dark:hover:text-blue-400 transition"
+                      onClick={() => { navigate('/my-listings'); closeMenu(); }}
+                    >
+                      <ShoppingBag size={22} className="mr-1" /> My Listings
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-base font-semibold flex items-center gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-800 transition"
+                      onClick={handleSignOut}
+                    >
+                      <X size={22} className="mr-1" /> Sign Out
+                    </Button>
+                  </>
+                ) : null}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 z-40">
-          <div className="flex justify-between items-center relative">
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/') }>
-              <Home size={20} />
-              <span className="text-xs">Home</span>
-            </Button>
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/marketplace') }>
-              <ShoppingBag size={20} />
-              <span className="text-xs">Market</span>
-            </Button>
-            <div className="flex-1 flex items-center justify-center" /> {/* Spacer for FAB */}
-            <div className="relative flex-1 flex items-center justify-center">
-              <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/chat') }>
-                <MessageCircle size={20} />
-                <span className="text-xs">Chat</span>
-              </Button>
-            </div>
-            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={handleProfileClick}>
-              <User size={20} />
-              <span className="text-xs">Profile</span>
+            <style>{`
+              @keyframes slideInRight {
+                from { transform: translateX(100%); }
+                to { transform: translateX(0); }
+              }
+              .animate-slideInRight {
+                animation: slideInRight 0.35s cubic-bezier(0.4,0,0.2,1);
+              }
+            `}</style>
+          </div>
+        )}
+      </nav>
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 z-40">
+        <div className="flex justify-between items-center relative">
+          <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/') }>
+            <Home size={20} />
+            <span className="text-xs">Home</span>
+          </Button>
+          <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/marketplace') }>
+            <ShoppingBag size={20} />
+            <span className="text-xs">Market</span>
+          </Button>
+          <div className="flex-1 flex items-center justify-center" /> {/* Spacer for FAB */}
+          <div className="relative flex-1 flex items-center justify-center">
+            <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/chat') }>
+              <MessageCircle size={20} />
+              <span className="text-xs">Chat</span>
             </Button>
           </div>
+          <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={handleProfileClick}>
+            <User size={20} />
+            <span className="text-xs">Profile</span>
+          </Button>
         </div>
-      </nav>
+      </div>
       {/* Mobile Floating Plus Button (centered between Market and Chat, slightly lifted) */}
       {user && (
         <>

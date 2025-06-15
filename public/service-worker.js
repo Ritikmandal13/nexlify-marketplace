@@ -5,6 +5,14 @@ const urlsToCache = [
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
+  '/splash-320x480.png',
+  '/splash-640x960.png',
+  '/splash-640x1136.png',
+  '/splash-750x1334.png',
+  '/splash-1080x1920.png',
+  '/splash-1242x2208.png',
+  '/splash-1125x2436.png',
+  '/splash-1440x2560.png',
   // Add more assets if needed
 ];
 

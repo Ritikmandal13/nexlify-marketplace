@@ -6,9 +6,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Camera } from 'lucide-react';
+import { ArrowLeft, Camera, MapPin, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ListingFormData {
   title: string;
@@ -17,6 +35,8 @@ interface ListingFormData {
   category: string;
   condition: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 const CreateListing = () => {
@@ -24,6 +44,10 @@ const CreateListing = () => {
   const { toast } = useToast();
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [showLocationPermissionDialog, setShowLocationPermissionDialog] = useState(false);
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
 
   const form = useForm<ListingFormData>({
     defaultValues: {
@@ -32,8 +56,11 @@ const CreateListing = () => {
       price: 0,
       category: '',
       condition: 'good',
-      location: ''
-    }
+      location: '',
+      latitude: undefined,
+      longitude: undefined,
+    },
+    shouldUnregister: false,
   });
 
   const categories = [
@@ -130,6 +157,114 @@ const CreateListing = () => {
     }
   };
 
+  const requestLocationPermission = async () => {
+    try {
+      // First check if we're in a PWA context
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                   (window.navigator as any).standalone || 
+                   document.referrer.includes('android-app://');
+      
+      if (isPWA) {
+        // Show our custom permission dialog first
+        setShowLocationPermissionDialog(true);
+      } else {
+        // In browser context, directly request location
+        getCurrentLocation();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to request location permission.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getCurrentLocation = () => {
+    setIsGettingLocation(true);
+    setShowLocationPermissionDialog(false);
+
+    if (!navigator.geolocation) {
+      toast({
+        title: "Error",
+        description: "Geolocation is not supported by your browser.",
+        variant: "destructive"
+      });
+      setIsGettingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          console.log('Geolocation API returned:', latitude, longitude);
+          // If the coordinates are still the default (e.g., Delhi), show an error
+          if (
+            (latitude === 28.7041 && longitude === 77.1025) ||
+            !latitude || !longitude
+          ) {
+            toast({
+              title: "Location Error",
+              description: "Could not fetch your real location. Please check your device settings and try again.",
+              variant: "destructive"
+            });
+            setIsGettingLocation(false);
+            return;
+          }
+          // Reverse geocode to get address
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          const data = await response.json();
+          const address = data.display_name;
+          setSelectedLocation({ lat: latitude, lng: longitude, address });
+          form.setValue('latitude', latitude);
+          form.setValue('longitude', longitude);
+          form.setValue('location', address || '');
+          setShowLocationDialog(true); // Open the map dialog after location is fetched
+          toast({
+            title: "Location Set",
+            description: "Your current location has been set successfully.",
+          });
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to get location details. Please try again.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsGettingLocation(false);
+        }
+      },
+      (error) => {
+        let errorMessage = "Failed to get your location.";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Please allow location access to set your location.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information is unavailable.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out.";
+            break;
+        }
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        setIsGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
+    );
+  };
+
   const onSubmit = async (data: ListingFormData) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -168,10 +303,13 @@ const CreateListing = () => {
         category: data.category,
         condition: data.condition,
         location: data.location,
+        latitude: data.latitude,
+        longitude: data.longitude,
         images: imageUrls,
         seller_id: user.id,
         seller_name: user.user_metadata?.full_name || user.email,
         seller_email: user.email,
+        seller_avatar_url: userProfile?.avatar_url || null,
       };
 
       const { error } = await supabase.from('listings').insert(listingData);
@@ -192,26 +330,33 @@ const CreateListing = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        <div className="flex items-center mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="mr-4"
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-2xl font-bold">Create New Listing</h1>
-        </div>
+  let bbox = '';
+  if (selectedLocation) {
+    const delta = 0.005;
+    bbox = [
+      selectedLocation.lng - delta,
+      selectedLocation.lat - delta,
+      selectedLocation.lng + delta,
+      selectedLocation.lat + delta
+    ].join(',');
+  }
 
-        <Card>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <Button
+          variant="ghost"
+          className="mb-6"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="mr-2" /> Back
+        </Button>
+        <Card className="shadow-xl border-0 bg-white/95 dark:bg-gray-900/90 backdrop-blur-lg">
           <CardHeader>
-            <CardTitle>Item Details</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">Create New Listing</CardTitle>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
+            <Form {...form} key="create-listing-form">
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* Image Upload */}
                 <div>
@@ -361,18 +506,116 @@ const CreateListing = () => {
                   <FormField
                     control={form.control}
                     name="location"
-                    rules={{ required: "Location is required" }}
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Location</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Campus area" {...field} />
-                        </FormControl>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full">
+                          <FormControl className="flex-1">
+                            <Input
+                              {...field}
+                              placeholder="Select a location"
+                              readOnly
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <div className="w-full sm:w-auto">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="flex items-center gap-2 w-full sm:w-auto"
+                              onClick={requestLocationPermission}
+                              disabled={isGettingLocation}
+                            >
+                              {isGettingLocation ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Getting Location...
+                                </>
+                              ) : (
+                                <>
+                                  <MapPin size={16} />
+                                  Use Current Location
+                                </>
+                              )}
+                            </Button>
+                            <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
+                              <DialogContent className="sm:max-w-[600px] h-[500px] p-0">
+                                <DialogHeader className="p-4">
+                                  <DialogTitle>Your Location</DialogTitle>
+                                  <DialogDescription>
+                                    This map shows your current location as detected by your device. Confirm if this is correct before saving your listing.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="w-full h-[400px] flex flex-col items-center justify-center">
+                                  {selectedLocation ? (
+                                    <>
+                                      <iframe
+                                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${selectedLocation.lat},${selectedLocation.lng}`}
+                                        width="100%"
+                                        height="100%"
+                                        style={{ border: 0 }}
+                                        allowFullScreen
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer-when-downgrade"
+                                      ></iframe>
+                                      <div className="mt-2 text-xs text-gray-500">
+                                        <div>Latitude: {selectedLocation.lat}</div>
+                                        <div>Longitude: {selectedLocation.lng}</div>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                                  )}
+                                </div>
+                                <div className="p-4 border-t">
+                                  <p className="text-sm text-gray-500 mb-2">
+                                    Your current location will be used for this listing
+                                  </p>
+                                  <Button
+                                    type="button"
+                                    onClick={() => setShowLocationDialog(false)}
+                                    className="w-full"
+                                  >
+                                    Close
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="latitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Latitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="e.g. 28.6139" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="longitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Longitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="e.g. 77.2090" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex space-x-4">
                   <Button type="submit" className="flex-1" disabled={uploading}>
@@ -391,6 +634,25 @@ const CreateListing = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Location Permission Dialog */}
+      <AlertDialog open={showLocationPermissionDialog} onOpenChange={setShowLocationPermissionDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Allow Location Access</AlertDialogTitle>
+            <AlertDialogDescription>
+              Nexlify needs access to your location to help buyers find your listing. 
+              This will only be used when you explicitly set a location for your listing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={getCurrentLocation}>
+              Allow Location
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
