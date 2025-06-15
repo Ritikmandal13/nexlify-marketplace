@@ -138,7 +138,7 @@ const ChatBot = () => {
 
       {/* Chat Modal */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-64 max-w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden animate-fadeIn">
+        <div className="fixed bottom-24 right-0 left-0 mx-auto z-50 w-full max-w-xs sm:max-w-sm md:max-w-md max-w-[95vw] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden animate-fadeIn">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
             <span className="font-bold">Nexlify Assistant</span>
             <button onClick={() => setOpen(false)} aria-label="Close chatbot">
@@ -161,10 +161,10 @@ const ChatBot = () => {
                 e.preventDefault();
                 handleSend(input);
               }}
-              className="flex gap-2"
+              className="flex gap-2 w-full"
             >
               <input
-                className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 w-0 min-w-0 rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Type your question..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
@@ -173,7 +173,7 @@ const ChatBot = () => {
               />
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-2 flex items-center justify-center"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-2 flex items-center justify-center flex-shrink-0"
                 aria-label="Send"
                 disabled={loading}
               >
