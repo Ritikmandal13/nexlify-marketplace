@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabaseClient';
@@ -44,6 +44,7 @@ function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
+  const location = useLocation();
 
   // Memoize isStandalone function
   const isStandalone = useCallback(() => {
@@ -124,7 +125,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <ChatBot />
+          {location.pathname !== '/signin' && location.pathname !== '/signup' && <ChatBot />}
           {/* PWA Install Banner */}
           {showPwaPrompt && deferredPrompt && (
             <div className="fixed top-6 left-0 right-0 z-[9999] flex justify-center animate-slideDown">

@@ -82,6 +82,52 @@ const MeetupScheduler = () => {
     },
   });
 
+  // Move fetch logic into a function
+  const fetchMeetups = async (userId: string) => {
+    setLoading(true);
+    const { data: myMeetups } = await supabase
+      .from('meetups')
+      .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
+      .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+      .order('scheduled_time', { ascending: false });
+    setMeetups(myMeetups || []);
+    // Fetch all involved profiles (buyer and seller) for the latest meetups
+    if (myMeetups && myMeetups.length > 0) {
+      const allPartyIds = Array.from(new Set(myMeetups.flatMap(m => [m.buyer_id, m.seller_id])));
+      if (allPartyIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, upi_id')
+          .in('id', allPartyIds);
+        const profilesMap: Record<string, Profile> = {};
+        profilesData?.forEach((p: Profile) => { profilesMap[p.id] = p; });
+        setProfileMap(profilesMap);
+      }
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!userId) return;
+    // Fetch meetups initially
+    fetchMeetups(userId);
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('meetups-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meetups' },
+        (payload) => {
+          fetchMeetups(userId);
+        }
+      )
+      .subscribe();
+    // Cleanup on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
   // Fetch user, listings, and meetups
   useEffect(() => {
     const fetchData = async () => {
@@ -103,16 +149,9 @@ const MeetupScheduler = () => {
         .select('id, title, images, price, location, latitude, longitude')
         .eq('seller_id', user.id);
       setListings(myListings || []);
-      // Fetch meetups where user is buyer or seller, include listing images and coordinates
-      const { data: myMeetups } = await supabase
-        .from('meetups')
-        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-        .order('scheduled_time', { ascending: false });
-      setMeetups(myMeetups || []);
       // Fetch all involved profiles (buyer and seller)
-      if (myMeetups && myMeetups.length > 0) {
-        const allPartyIds = Array.from(new Set(myMeetups.flatMap(m => [m.buyer_id, m.seller_id])));
+      if (meetups && meetups.length > 0) {
+        const allPartyIds = Array.from(new Set(meetups.flatMap(m => [m.buyer_id, m.seller_id])));
         if (allPartyIds.length > 0) {
           const { data: profilesData } = await supabase
             .from('profiles')
@@ -477,7 +516,7 @@ const MeetupScheduler = () => {
                                 <Button
                                   size="sm"
                                   className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow mt-2"
-                                  onClick={() => window.open(`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}`, '_blank')}
+                                  onClick={() => window.open(`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}&pn=Payment`, '_blank')}
                                 >
                                   Pay via UPI App
                                 </Button>
@@ -550,6 +589,17 @@ const MeetupScheduler = () => {
                               <Button size="sm" variant="destructive" className="font-semibold shadow" onClick={() => updateMeetupStatus(meetup.id, 'declined')}>Decline</Button>
                             </>
                           )}
+                          {/* Seller actions for accepted meetups */}
+                          {isSeller && meetup.status === 'accepted' && (
+                            <>
+                              <Button size="sm" className="bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold shadow" onClick={() => setShowQrModal(meetup.id)}>Show QR</Button>
+                              {(!meetup.payment_status || meetup.payment_status === 'none') && (
+                                <Button size="sm" className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold shadow" onClick={() => requestPayment(meetup)}>
+                                  Request Payment
+                                </Button>
+                              )}
+                            </>
+                          )}
                           {/* Buyer or seller can cancel if pending or accepted */}
                           {(isSeller || isBuyer) && (meetup.status === 'pending' || meetup.status === 'accepted') && (
                             <Button size="sm" variant="outline" className="font-semibold shadow" onClick={() => updateMeetupStatus(meetup.id, 'cancelled')}>Cancel</Button>
@@ -581,6 +631,62 @@ const MeetupScheduler = () => {
           </div>
         )}
       </div>
+      {/* QR Code Modal */}
+      <AlertDialog open={showQrModal !== null} onOpenChange={open => setShowQrModal(open ? showQrModal : null)}>
+        <AlertDialogContent className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-100 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 rounded-2xl shadow-2xl border-0">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-center text-2xl font-extrabold mb-2">UPI QR Code</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-base mb-4 text-gray-600 dark:text-gray-300">
+              Scan this QR code to pay via UPI.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col items-center justify-center min-h-[260px]">
+            {(() => {
+              const meetup = meetups.find(m => m.id === showQrModal);
+              const upiId = meetup && profileMap[meetup.seller_id]?.upi_id;
+              const price = meetup?.listing?.price;
+              const title = meetup?.listing?.title;
+              if (!meetup) {
+                return <span className="text-red-500 font-semibold">Meetup not found.</span>;
+              }
+              if (!upiId) {
+                return <span className="text-red-500 font-semibold">Seller has not set a UPI ID in their profile.</span>;
+              }
+              if (!price) {
+                return <span className="text-red-500 font-semibold">Listing does not have a price set.</span>;
+              }
+              return (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex flex-col items-center border border-blue-100 dark:border-gray-700">
+                    <QRCodeSVG value={`upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('Payment for ' + (title || 'listing'))}&cu=INR`} size={200} className="rounded-lg" />
+                  </div>
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    <div className="flex items-center gap-2 bg-blue-100 dark:bg-gray-800 px-3 py-1 rounded-full text-blue-700 dark:text-blue-300 font-semibold text-sm shadow">
+                      <span>UPI ID:</span>
+                      <span className="font-mono select-all">{upiId}</span>
+                      <button
+                        className="ml-1 px-2 py-0.5 rounded bg-blue-200 dark:bg-gray-700 text-xs font-bold hover:bg-blue-300 dark:hover:bg-gray-600 transition"
+                        onClick={() => {navigator.clipboard.writeText(upiId)}}
+                        title="Copy UPI ID"
+                        type="button"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 bg-yellow-100 dark:bg-gray-800 px-3 py-1 rounded-full text-yellow-700 dark:text-yellow-300 font-semibold text-sm shadow">
+                      <span>Amount:</span>
+                      <span>Enter manually in your UPI app</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="mt-4">Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
