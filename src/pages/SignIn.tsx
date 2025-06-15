@@ -18,13 +18,27 @@ const SignIn = () => {
     e.preventDefault();
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      const user = data.user;
+      let showWelcome = false;
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('has_seen_welcome')
+          .eq('id', user.id)
+          .single();
+        showWelcome = !profile || profile.has_seen_welcome === false;
+      }
       toast({
         title: "Success!",
         description: "You have been signed in successfully.",
       });
-      navigate('/');
+      if (showWelcome) {
+        navigate('/welcome');
+      } else {
+        navigate('/');
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",

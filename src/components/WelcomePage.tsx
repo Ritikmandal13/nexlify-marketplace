@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { ChevronRight, MapPin, MessageCircle, Shield, Zap, Users, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
-const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
+const WelcomePage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const navigate = useNavigate();
 
   const slides = [
     {
@@ -48,6 +51,15 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
     }
   };
 
+  const handleGetStarted = async () => {
+    // Mark has_seen_welcome as true in the user's profile
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('profiles').update({ has_seen_welcome: true }).eq('id', user.id);
+    }
+    navigate('/');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/20 to-accent/10 flex flex-col">
       {/* Header */}
@@ -55,7 +67,7 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
         <div className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
           Nexlify
         </div>
-        <Button variant="ghost" onClick={onGetStarted} className="text-muted-foreground">
+        <Button variant="ghost" onClick={handleGetStarted} className="text-muted-foreground">
           Skip
         </Button>
       </div>
@@ -112,7 +124,7 @@ const WelcomePage = ({ onGetStarted }: { onGetStarted: () => void }) => {
 
           {currentSlide === slides.length - 1 ? (
             <Button
-              onClick={onGetStarted}
+              onClick={handleGetStarted}
               className="bg-primary hover:bg-primary/90 px-8"
             >
               Get Started

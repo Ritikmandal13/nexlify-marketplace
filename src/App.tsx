@@ -28,6 +28,7 @@ import { messaging, getToken, onMessage } from './firebase';
 import MeetupScheduler from './pages/MeetupScheduler';
 import ScheduleMeetup from './pages/ScheduleMeetup';
 import ChatBot from '@/components/ChatBot';
+import WelcomePage from '@/components/WelcomePage';
 
 const queryClient = new QueryClient();
 
@@ -212,6 +213,7 @@ function App() {
               <Route path="/favorites" element={<Favorites />} />
               <Route path="/meetups" element={<MeetupScheduler />} />
               <Route path="/meetups/schedule" element={<ScheduleMeetup />} />
+              <Route path="/welcome" element={<WelcomePage onGetStarted={() => navigate('/')} />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Router>
