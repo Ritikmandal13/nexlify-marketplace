@@ -12,6 +12,7 @@ const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -25,6 +26,7 @@ const Navigation = () => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user as AuthUser | null);
+      setLoading(false);
       if (user) {
         // Fetch avatar_url from profiles
         const { data, error } = await supabase
@@ -51,6 +53,7 @@ const Navigation = () => {
     getUser();
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user as AuthUser | null);
+      setLoading(false);
       if (session?.user) {
         // Fetch avatar_url on auth state change
         supabase
@@ -137,7 +140,7 @@ const Navigation = () => {
             {/* Search Icon (always visible, right of logo) */}
             <div className="flex-1 flex items-center justify-end z-10 gap-2">
               {/* Show Sign In button left of search if not logged in */}
-              {!user && (
+              {!loading && !user && (
                 <Button
                   className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg shadow hover:from-blue-700 hover:to-purple-700 transition text-sm md:text-base"
                   onClick={() => navigate('/signin')}

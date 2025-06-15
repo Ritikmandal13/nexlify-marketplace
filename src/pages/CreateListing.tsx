@@ -247,7 +247,7 @@ const CreateListing = () => {
             errorMessage = "Location information is unavailable.";
             break;
           case error.TIMEOUT:
-            errorMessage = "Location request timed out.";
+            errorMessage = "Location request timed out. Try again, or check your device's location settings.";
             break;
         }
         toast({
@@ -258,8 +258,8 @@ const CreateListing = () => {
         setIsGettingLocation(false);
       },
       {
-        enableHighAccuracy: true,
-        timeout: 5000,
+        enableHighAccuracy: false,
+        timeout: 15000,
         maximumAge: 0
       }
     );
