@@ -20,6 +20,9 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
+      .catch(err => {
+        console.error('Service Worker install: Failed to cache some files:', err);
+      })
   );
 });
 

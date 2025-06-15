@@ -171,52 +171,44 @@ function App() {
               </style>
             </div>
           )}
-          <Router>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/marketplace" element={<Marketplace />} />
-              <Route path="/listing/:id" element={<ListingDetail />} />
-              <Route 
-                path="/create-listing" 
-                element={
-                  <ProtectedRoute>
-                    <CreateListing />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/edit-listing/:id" 
-                element={
-                  <ProtectedRoute>
-                    <EditListing />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/chats" 
-                element={<Navigate to="/chat" replace />} 
-              />
-              <Route 
-                path="/chat/:id" 
-                element={
-                  <ProtectedRoute>
-                    <ChatDetail />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/my-listings" element={<MyListings />} />
-              <Route path="/favorites" element={<Favorites />} />
-              <Route path="/meetups" element={<MeetupScheduler />} />
-              <Route path="/meetups/schedule" element={<ScheduleMeetup />} />
-              <Route path="/welcome" element={<WelcomePage onGetStarted={() => navigate('/')} />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Router>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/listing/:id" element={<ListingDetail />} />
+            <Route 
+              path="/create-listing" 
+              element={
+                <ProtectedRoute>
+                  <CreateListing />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/edit-listing/:id" 
+              element={
+                <ProtectedRoute>
+                  <EditListing />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/chats" 
+              element={<Navigate to="/chat" replace />} 
+            />
+            <Route 
+              path="/chat" 
+              element={<Chat />} 
+            />
+            <Route path="/chat/:id" element={<ChatDetail />} />
+            <Route path="/favorites" element={<Favorites />} />
+            <Route path="/profile" element={<UserProfile />} />
+            <Route path="/meetups" element={<MeetupScheduler />} />
+            <Route path="/meetups/schedule" element={<ScheduleMeetup />} />
+            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
