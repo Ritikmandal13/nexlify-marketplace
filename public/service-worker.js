@@ -26,7 +26,14 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
-      .then(response => response || fetch(event.request))
+      .then(response => {
+        if (response) return response;
+        return fetch(event.request);
+      })
+      .catch(() => {
+        // Optionally, return a fallback page or message
+        return new Response('Resource not available', { status: 503 });
+      })
   );
 });
 
