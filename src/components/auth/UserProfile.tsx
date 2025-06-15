@@ -159,13 +159,12 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
     const fetchTotalEarned = async () => {
       if (!user) return;
       const { data, error } = await supabase
-        .from('meetups')
-        .select('payment_amount')
-        .eq('seller_id', user.id)
-        .eq('payment_status', 'paid');
+        .from('profiles')
+        .select('total_earned')
+        .eq('id', user.id)
+        .single();
       if (!error && data) {
-        const total = data.reduce((sum: number, m: any) => sum + (m.payment_amount || 0), 0);
-        setTotalEarned(total);
+        setTotalEarned(data.total_earned || 0);
       } else {
         setTotalEarned(0);
       }

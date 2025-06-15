@@ -21,13 +21,12 @@ const ScheduleMeetup = () => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const preselectedListingId = params.get('listingId');
-  const [listings, setListings] = React.useState<Listing[]>([]);
+  const [listing, setListing] = React.useState<Listing | null>(null);
   const [userId, setUserId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   const form = useForm({
     defaultValues: {
-      listing_id: preselectedListingId || '',
       scheduled_time: '',
       location: '',
       notes: '',
@@ -40,44 +39,44 @@ const ScheduleMeetup = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setUserId(null);
-        setListings([]);
+        setListing(null);
         setLoading(false);
         return;
       }
       setUserId(user.id);
-      // Fetch all listings
-      const { data: allListings } = await supabase
-        .from('listings')
-        .select('id, title');
-      setListings(allListings || []);
+      // Fetch the selected listing
+      if (preselectedListingId) {
+        const { data: fetchedListing } = await supabase
+          .from('listings')
+          .select('id, title')
+          .eq('id', preselectedListingId)
+          .single();
+        setListing(fetchedListing || null);
+      } else {
+        setListing(null);
+      }
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [preselectedListingId]);
 
   const onSubmit = async (values: any) => {
-    if (!userId) {
-      toast({ title: 'Authentication Required', description: 'You must be signed in to schedule a meetup.', variant: 'destructive' });
-      return;
-    }
-    // Get the selected listing to find seller_id
-    const selectedListing = listings.find(l => l.id === values.listing_id);
-    if (!selectedListing) {
-      toast({ title: 'Error', description: 'Please select a listing.' });
+    if (!userId || !listing) {
+      toast({ title: 'Authentication Required', description: 'You must be signed in and have a valid listing to schedule a meetup.', variant: 'destructive' });
       return;
     }
     // Fetch full listing to get seller_id
     const { data: listingData } = await supabase
       .from('listings')
       .select('seller_id')
-      .eq('id', values.listing_id)
+      .eq('id', listing.id)
       .single();
     if (!listingData) {
       toast({ title: 'Error', description: 'Listing not found.' });
       return;
     }
     const { error } = await supabase.from('meetups').insert({
-      listing_id: values.listing_id,
+      listing_id: listing.id,
       buyer_id: userId,
       seller_id: listingData.seller_id,
       scheduled_time: values.scheduled_time,
@@ -115,16 +114,9 @@ const ScheduleMeetup = () => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <label className="block font-semibold mb-2 text-gray-800 dark:text-gray-200">Listing</label>
-                <select
-                  className="w-full border-2 border-blue-200 dark:border-gray-700 rounded-lg px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-400"
-                  {...form.register('listing_id', { required: true })}
-                  disabled={loading}
-                >
-                  <option value="">Select a listing</option>
-                  {listings.map(listing => (
-                    <option key={listing.id} value={listing.id}>{listing.title}</option>
-                  ))}
-                </select>
+                <div className="w-full border-2 border-blue-200 dark:border-gray-700 rounded-lg px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+                  {loading ? 'Loading...' : listing ? listing.title : 'No listing found.'}
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>

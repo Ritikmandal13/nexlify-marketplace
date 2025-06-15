@@ -17,6 +17,7 @@ interface Listing {
   condition: string;
   category: string;
   seller_avatar_url?: string;
+  status: string;
 }
 
 const FeaturedItems = () => {
@@ -113,6 +114,11 @@ const FeaturedItems = () => {
                   <Badge className="absolute top-2 left-2 bg-green-500 text-white">
                     {item.condition}
                   </Badge>
+                  {item.status === 'sold' && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <Badge className="bg-red-500 text-white text-lg">Sold Out</Badge>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="p-4">
@@ -166,6 +172,7 @@ const FeaturedItems = () => {
                           navigate(`/listing/${item.id}`);
                         }
                       }}
+                      disabled={item.status === 'sold'}
                     >
                       View Details
                     </Button>

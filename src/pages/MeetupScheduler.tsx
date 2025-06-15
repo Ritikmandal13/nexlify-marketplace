@@ -223,6 +223,25 @@ const MeetupScheduler = () => {
     }
   };
 
+  // Add function to update seller's earnings
+  const addEarningsToSeller = async (sellerId: string, amount: number) => {
+    // Fetch current total_earned
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('total_earned')
+      .eq('id', sellerId)
+      .single();
+    let newTotal = amount;
+    if (profile && profile.total_earned) {
+      newTotal += profile.total_earned;
+    }
+    await supabase
+      .from('profiles')
+      .update({ total_earned: newTotal })
+      .eq('id', sellerId);
+  };
+
+  // Update markAsPaid to only be called by buyer
   const markAsPaid = async (meetup: Meetup) => {
     if (!meetup.id) return;
     setLoading(true);
@@ -242,6 +261,43 @@ const MeetupScheduler = () => {
       const { data: myMeetups } = await supabase
         .from('meetups')
         .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude)')
+        .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+        .order('scheduled_time', { ascending: false });
+      setMeetups(myMeetups || []);
+    }
+  };
+
+  // Add seller confirm payment function
+  const confirmPaymentReceived = async (meetup: Meetup) => {
+    if (!meetup.id) return;
+    setLoading(true);
+    // Mark as completed and confirmed
+    const { error } = await supabase
+      .from('meetups')
+      .update({
+        payment_status: 'confirmed',
+        status: 'completed',
+      })
+      .eq('id', meetup.id);
+    // Also mark the listing as sold
+    if (!error && meetup.listing?.id) {
+      await supabase
+        .from('listings')
+        .update({ status: 'sold' })
+        .eq('id', meetup.listing.id);
+    }
+    if (!error && meetup.listing?.price && meetup.seller_id) {
+      await addEarningsToSeller(meetup.seller_id, meetup.listing.price);
+    }
+    setLoading(false);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Deal Completed', description: 'Payment confirmed and earnings updated.' });
+      // Refresh meetups
+      const { data: myMeetups } = await supabase
+        .from('meetups')
+        .select('*, listing:listing_id(id, title, images, price, location, latitude, longitude, status)')
         .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
         .order('scheduled_time', { ascending: false });
       setMeetups(myMeetups || []);
@@ -392,10 +448,24 @@ const MeetupScheduler = () => {
                       </div>
                       <div className="flex flex-col gap-1 mt-2">
                         {/* Payment status and actions */}
-                        {meetup.payment_status === 'paid' ? (
-                          <div className="flex items-center gap-2 text-green-600 font-semibold">
-                            <Check size={18} /> Paid
+                        {meetup.payment_status === 'confirmed' ? (
+                          <div className="flex items-center gap-2 text-green-700 font-semibold">
+                            <Check size={18} /> Payment Confirmed
                           </div>
+                        ) : meetup.payment_status === 'paid' ? (
+                          isSeller ? (
+                            <Button
+                              size="sm"
+                              className="bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold shadow"
+                              onClick={() => confirmPaymentReceived(meetup)}
+                            >
+                              Confirm Payment Received
+                            </Button>
+                          ) : (
+                            <div className="flex items-center gap-2 text-blue-600 font-semibold">
+                              <Check size={18} /> Waiting for seller to confirm payment
+                            </div>
+                          )
                         ) : meetup.payment_status === 'requested' ? (
                           isBuyer ? (
                             <>
@@ -437,37 +507,9 @@ const MeetupScheduler = () => {
                               </AlertDialog>
                             </>
                           ) : isSeller ? (
-                            <>
-                              <div className="flex flex-col gap-2">
-                                <Button
-                                  size="sm"
-                                  className="bg-gradient-to-r from-blue-500 to-green-600 text-white font-semibold shadow"
-                                  onClick={() => window.open(`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}`, '_blank')}
-                                >
-                                  Request Payment (UPI Link)
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="font-semibold shadow"
-                                  onClick={() => setShowQrModal(meetup.id)}
-                                >
-                                  Show QR Code
-                                </Button>
-                              </div>
-                              {showQrModal === meetup.id && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                                  <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8 relative flex flex-col items-center">
-                                    <button onClick={() => setShowQrModal(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 z-10">
-                                      <X size={28} />
-                                    </button>
-                                    <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">UPI QR Code</h2>
-                                    <QRCodeSVG value={`upi://pay?pa=${profileMap[meetup.seller_id]?.upi_id}`} size={180} />
-                                    <div className="mt-3 text-xs text-gray-500 text-center">Show this QR code to the buyer. They will scan and enter the amount manually.</div>
-                                  </div>
-                                </div>
-                              )}
-                            </>
+                            <div className="flex flex-col gap-2">
+                              <div className="text-blue-600 font-semibold">Payment requested. Waiting for buyer to pay.</div>
+                            </div>
                           ) : (
                             <div className="flex items-center gap-2 text-yellow-600 font-semibold">
                               <Send size={18} /> Payment Requested

@@ -281,6 +281,11 @@ const Marketplace = () => {
                     <Badge className="absolute top-2 left-2 bg-green-500 text-white capitalize">
                       {listing.condition}
                     </Badge>
+                    {listing.status === 'sold' && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <Badge className="bg-red-500 text-white text-lg">Sold Out</Badge>
+                      </div>
+                    )}
                   </div>
                   <CardContent className="p-4">
                     <h3 className="font-semibold text-lg mb-1 line-clamp-1">{listing.title}</h3>
