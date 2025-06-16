@@ -206,6 +206,7 @@ function App() {
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/meetups" element={<MeetupScheduler />} />
             <Route path="/meetups/schedule" element={<ScheduleMeetup />} />
+            <Route path="/my-listings" element={<MyListings />} />
             <Route path="/welcome" element={<WelcomePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
