@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Edit, Trash2 } from 'lucide-react';
-import Navigation from '@/components/Navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 interface Listing {
@@ -54,7 +53,6 @@ const MyListings = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
       <div className="max-w-7xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold mb-6">My Listings</h1>
         {loading ? (

@@ -203,10 +203,17 @@ function App() {
             />
             <Route path="/chat/:id" element={<ChatDetail />} />
             <Route path="/favorites" element={<Favorites />} />
-            <Route path="/profile" element={<UserProfile />} />
+            <Route path="/profile" element={<UserProfile isOpen={true} onClose={() => {}} />} />
             <Route path="/meetups" element={<MeetupScheduler />} />
             <Route path="/meetups/schedule" element={<ScheduleMeetup />} />
-            <Route path="/my-listings" element={<MyListings />} />
+            <Route 
+              path="/my-listings" 
+              element={
+                <ProtectedRoute>
+                  <MyListings />
+                </ProtectedRoute>
+              } 
+            />
             <Route path="/welcome" element={<WelcomePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
