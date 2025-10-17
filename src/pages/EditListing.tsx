@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { ArrowLeft, Camera, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { PriceSuggestion } from '@/components/PriceSuggestion';
 
 interface ListingFormData {
   title: string;
@@ -328,6 +329,16 @@ const EditListing = () => {
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                {/* AI Price Suggestion */}
+                <PriceSuggestion
+                  title={form.watch('title')}
+                  description={form.watch('description')}
+                  category={form.watch('category')}
+                  condition={form.watch('condition')}
+                  currentPrice={form.watch('price')}
+                  onPriceSelect={(price) => form.setValue('price', price)}
                 />
 
                 <div className="grid grid-cols-2 gap-4">

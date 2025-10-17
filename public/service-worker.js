@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexlify-cache-v1';
+const CACHE_NAME = 'smartthrift-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',

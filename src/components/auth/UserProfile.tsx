@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { User as UserIcon, Mail, GraduationCap, Shield, Edit2, Save, X, Image as ImageIcon, Info } from 'lucide-react';
+import { User as UserIcon, Mail, GraduationCap, Shield, Edit2, Save, X, Image as ImageIcon, Info, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import { User, AuthUser } from '@/types/user';
 import { useNavigate } from 'react-router-dom';
+import { StarRatingDisplay } from '@/components/ui/star-rating';
 
 interface UserProfileProps {
   isOpen: boolean;
@@ -24,8 +25,31 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   const [uploading, setUploading] = useState(false);
   const [upiId, setUpiId] = useState('');
   const [totalEarned, setTotalEarned] = useState<number>(0);
+  const [userRating, setUserRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Fetch user ratings
+  const fetchUserRating = async (userId: string) => {
+    try {
+      const { data: ratings } = await supabase
+        .from('user_ratings')
+        .select('rating')
+        .eq('user_id', userId);
+      
+      if (ratings && ratings.length > 0) {
+        const avgRating = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
+        setUserRating(Number(avgRating.toFixed(1)));
+        setReviewCount(ratings.length);
+      } else {
+        setUserRating(0);
+        setReviewCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching user rating:', error);
+    }
+  };
 
   // Always fetch latest user and profile info when modal opens
   useEffect(() => {
@@ -34,6 +58,7 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
           setUser(authUser as AuthUser);
+          fetchUserRating(authUser.id);
           
           // Try to fetch user profile
           const { data, error } = await supabase
@@ -352,7 +377,14 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
           <div className="text-sm text-gray-500 dark:text-gray-300 mb-2">{user.email}</div>
         </div>
         {/* Stats Section */}
-        <div className="flex justify-center gap-4 px-6 -mt-6 mb-4">
+        <div className="flex justify-center gap-4 px-6 -mt-6 mb-4 flex-wrap">
+          {userRating > 0 && (
+            <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-400/80 to-orange-400/80 dark:from-yellow-600/80 dark:to-orange-600/80 rounded-xl px-4 py-2 shadow text-white font-semibold">
+              <Star size={20} className="opacity-80 fill-current" />
+              <span>{userRating}</span>
+              <span className="text-sm opacity-90">({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-gradient-to-r from-green-400/80 to-blue-400/80 dark:from-green-700/80 dark:to-blue-700/80 rounded-xl px-4 py-2 shadow text-white font-semibold">
             <Shield size={20} className="opacity-80" />
             <span>Total Earned</span>

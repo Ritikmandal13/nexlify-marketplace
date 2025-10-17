@@ -23,13 +23,13 @@ const FAQS = [
     keywords: ['pay', 'payment', 'upi', 'get paid', 'send money', 'receive', 'money']
   },
   {
-    q: 'Is it safe to use Nexlify?',
-    a: 'Always meet in public places and verify items before paying. Nexlify provides reviews and chat to help you trade safely.',
+    q: 'Is it safe to use SmartThrift?',
+    a: 'Always meet in public places and verify items before paying. SmartThrift provides reviews and chat to help you trade safely.',
     keywords: ['safe', 'safety', 'secure', 'trust', 'scam', 'fraud', 'review']
   },
   {
     q: 'How do I contact support?',
-    a: 'If you need help, use this chatbot or email us at support@nexlify.app.',
+    a: 'If you need help, use this chatbot or email us at support@smartthrift.app.',
     keywords: ['support', 'help', 'contact', 'email', 'problem', 'issue']
   }
 ];
@@ -51,39 +51,115 @@ function matchFAQ(input) {
   return null;
 }
 
-// Hugging Face API key from environment variable
-const HF_API_KEY = import.meta.env.VITE_HF_API_KEY;
-const HF_MODEL = "mistralai/Mixtral-8x7B-Instruct-v0.1";
+// AI API keys from environment variables
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-async function callHuggingFace(prompt) {
-  const url = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
-  const systemPrompt = "You are Nexlify's helpful support assistant. Answer questions about the Nexlify marketplace app, buying, selling, meetups, payments, and safety. If the question is not about Nexlify, politely say you can only help with Nexlify-related topics.";
-  const userPrompt = `${systemPrompt}\n\nUser: ${prompt}\nAssistant:`;
+async function callGeminiAI(prompt) {
+  // Check if API key is available
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'undefined' || GEMINI_API_KEY === 'PASTE_YOUR_API_KEY_HERE') {
+    return getFallbackResponse(prompt);
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+  
+  // Create SmartThrift-specific system prompt
+  const systemContext = `You are a helpful assistant for SmartThrift, a local marketplace and community platform. 
+
+SmartThrift features:
+- Buy and sell items locally with ratings and reviews
+- Advanced search filters (price, distance, rating, condition)
+- Real-time chat with sellers
+- Schedule meetups for safe exchanges
+- User profiles with reputation scores
+- Favorite listings
+- Multiple categories (textbooks, electronics, furniture, etc.)
+
+Answer user questions about SmartThrift features, how to use the app, safety tips, and general marketplace guidance. Keep responses concise (2-3 sentences) and helpful.`;
+
+  const fullPrompt = `${systemContext}\n\nUser Question: ${prompt}\n\nAssistant:`;
+  
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${HF_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ inputs: userPrompt })
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: fullPrompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 200,
+          topP: 0.9,
+          topK: 40
+        }
+      })
     });
-    const data = await res.json();
-    let reply = data[0]?.generated_text || "Sorry, I couldn't get a response from Hugging Face.";
-    // Extract only the assistant's reply
-    if (reply.includes("Assistant:")) {
-      reply = reply.split("Assistant:").pop().trim();
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.warn('Gemini API error:', res.status, errorText);
+      return getFallbackResponse(prompt);
     }
-    return reply;
+    
+    const data = await res.json();
+    
+    // Extract response from Gemini's response format
+    if (data.candidates && data.candidates.length > 0) {
+      const candidate = data.candidates[0];
+      if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+        const reply = candidate.content.parts[0].text.trim();
+        return reply || getFallbackResponse(prompt);
+      }
+    }
+    
+    // If response format is unexpected, use fallback
+    console.warn('Unexpected Gemini response format:', data);
+    return getFallbackResponse(prompt);
   } catch (err) {
-    return "Sorry, there was an error contacting Hugging Face.";
+    console.error('Gemini AI error:', err);
+    return getFallbackResponse(prompt);
   }
+}
+
+// Intelligent fallback when AI is unavailable
+function getFallbackResponse(prompt) {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Context-aware responses
+  if (lowerPrompt.includes('review') || lowerPrompt.includes('rating')) {
+    return "You can leave reviews and ratings on items after completing a transaction. This helps build trust in the SmartThrift community! To see reviews, check the listing detail page.";
+  }
+  if (lowerPrompt.includes('filter') || lowerPrompt.includes('search') || lowerPrompt.includes('sort')) {
+    return "You can use our advanced filters to search for items! Filter by price range, distance, rating, and condition. You can also sort by newest, price, or ratings. Try the filter panel on the marketplace page!";
+  }
+  if (lowerPrompt.includes('favorite') || lowerPrompt.includes('save') || lowerPrompt.includes('bookmark')) {
+    return "You can favorite items by clicking the heart icon on any listing. View all your favorites in the 'My Favorites' section from your profile menu.";
+  }
+  if (lowerPrompt.includes('chat') || lowerPrompt.includes('message')) {
+    return "To message a seller, click 'Message Seller' on any listing. You'll be able to chat in real-time to discuss details, negotiate, or ask questions!";
+  }
+  if (lowerPrompt.includes('location') || lowerPrompt.includes('distance') || lowerPrompt.includes('nearby')) {
+    return "SmartThrift shows items near you! You can filter by distance (1km, 5km, 10km, 25km) to find sellers nearby. Always meet in public places for safety!";
+  }
+  if (lowerPrompt.includes('price') || lowerPrompt.includes('cost') || lowerPrompt.includes('expensive')) {
+    return "Use the price range filter to find items within your budget! Slide the price range selector to set your min and max price. You can also sort by 'Price: Low to High' to find the best deals!";
+  }
+  if (lowerPrompt.includes('account') || lowerPrompt.includes('profile') || lowerPrompt.includes('signup')) {
+    return "To create an account, click 'Join SmartThrift' and sign up with your email. You'll be able to create listings, message sellers, and build your reputation with reviews!";
+  }
+  
+  // Default helpful response
+  return "I'm here to help with SmartThrift! You can ask me about:\n• Buying or selling items\n• Using filters and search\n• Reviews and ratings\n• Messaging sellers\n• Meetups and safety\n• Your account\n\nTry one of the quick question buttons below, or ask me anything!";
 }
 
 const ChatBot = () => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: 'bot', text: 'Hi! I am Nexlify Assistant. How can I help you today?' }
+    { from: 'bot', text: 'Hi! I am SmartThrift Assistant. How can I help you today?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -109,12 +185,12 @@ const ChatBot = () => {
         ]);
         setLoading(false);
       } else {
-        // Call Hugging Face
+        // Call Gemini AI
         setMessages(msgs => [
           ...msgs,
-          { from: 'bot', text: 'Thinking...' }
+          { from: 'bot', text: '🤔 Thinking...' }
         ]);
-        const aiReply = await callHuggingFace(text);
+        const aiReply = await callGeminiAI(text);
         setMessages(msgs => [
           ...msgs.slice(0, -1), // remove 'Thinking...'
           { from: 'bot', text: aiReply }
@@ -140,7 +216,7 @@ const ChatBot = () => {
       {open && (
         <div className="fixed bottom-24 right-0 left-0 mx-auto z-50 w-full max-w-xs sm:max-w-sm md:max-w-md max-w-[95vw] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden animate-fadeIn">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-            <span className="font-bold">Nexlify Assistant</span>
+            <span className="font-bold">SmartThrift Assistant</span>
             <button onClick={() => setOpen(false)} aria-label="Close chatbot">
               <X size={20} />
             </button>

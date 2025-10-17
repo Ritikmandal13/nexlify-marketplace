@@ -40,7 +40,7 @@ const AppFeatures = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-10">
           <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-            Why Choose Nexlify?
+            Why Choose SmartThrift?
           </h2>
           <p className="text-base text-muted-foreground max-w-2xl mx-auto">
             Built specifically for campus and local community trading with features that matter

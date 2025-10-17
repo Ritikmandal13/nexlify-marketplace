@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Nexlify Marketplace',
-        short_name: 'Nexlify',
+        name: 'SmartThrift Marketplace',
+        short_name: 'SmartThrift',
         description: 'A modern, India-centric marketplace app',
         theme_color: '#ffffff',
         background_color: '#ffffff',

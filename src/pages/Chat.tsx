@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,12 +27,68 @@ interface Chat {
 
 const Chat = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { theme, toggleTheme } = useTheme();
   const [chats, setChats] = useState<Chat[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const fetchChats = useCallback(async (userId: string) => {
+    try {
+      // Fetch all chats where the current user is a participant
+      const { data: chatData, error: chatError } = await supabase
+        .from('chats')
+        .select('*')
+        .contains('user_ids', [userId]);
+
+      if (chatError) throw chatError;
+
+      // For each chat, get the other user's details and unread count
+      const chatsWithUsers = await Promise.all(
+        chatData.map(async (chat) => {
+          const otherUserId = chat.user_ids.find(id => id !== userId);
+          if (!otherUserId) return { ...chat, unread_count: 0 };
+
+          const { data: userData, error: userError } = await supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url')
+            .eq('id', otherUserId)
+            .single();
+
+          if (userError) {
+            console.error('Error fetching user:', userError);
+            return { ...chat, unread_count: 0 };
+          }
+
+          // Count unread messages for this chat (messages not sent by current user and not read)
+          const { count: unreadCount, error: countError } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('chat_id', chat.id)
+            .eq('is_read', false)
+            .neq('sender_id', userId);
+
+          if (countError) {
+            console.error('Error counting unread messages:', countError);
+          }
+
+          return {
+            ...chat,
+            other_user: userData,
+            unread_count: unreadCount || 0
+          };
+        })
+      );
+
+      setChats(chatsWithUsers);
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -48,51 +104,80 @@ const Chat = () => {
       }
       setCurrentUser(user);
       fetchChats(user.id);
-    };
-    checkUser();
-  }, [navigate, toast]);
 
-  const fetchChats = async (userId: string) => {
-    try {
-      // Fetch all chats where the current user is a participant
-      const { data: chatData, error: chatError } = await supabase
-        .from('chats')
-        .select('*')
-        .contains('user_ids', [userId]);
-
-      if (chatError) throw chatError;
-
-      // For each chat, get the other user's details
-      const chatsWithUsers = await Promise.all(
-        chatData.map(async (chat) => {
-          const otherUserId = chat.user_ids.find(id => id !== userId);
-          if (!otherUserId) return { ...chat };
-
-          const { data: userData, error: userError } = await supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url')
-            .eq('id', otherUserId)
-            .single();
-
-          if (userError) {
-            console.error('Error fetching user:', userError);
-            return { ...chat };
+      // Subscribe to real-time updates for messages
+      const messagesSubscription = supabase
+        .channel('messages-channel')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'messages',
+          },
+          (payload) => {
+            console.log('Message change detected:', payload);
+            // Small delay to ensure database has updated
+            setTimeout(() => {
+              fetchChats(user.id);
+            }, 100);
           }
+        )
+        .subscribe();
 
-          return {
-            ...chat,
-            other_user: userData
-          };
-        })
-      );
+      // Subscribe to chat updates (for last_message changes)
+      const chatsSubscription = supabase
+        .channel('chats-channel')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'chats',
+          },
+          (payload) => {
+            console.log('Chat updated:', payload);
+            // Refetch chats to get latest last_message
+            fetchChats(user.id);
+          }
+        )
+        .subscribe();
 
-      setChats(chatsWithUsers);
-    } catch (error) {
-      console.error('Error fetching chats:', error);
-    } finally {
-      setLoading(false);
+      // Refetch when page becomes visible (user returns from chat detail)
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          console.log('Page visible, refetching chats...');
+          fetchChats(user.id);
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        messagesSubscription.unsubscribe();
+        chatsSubscription.unsubscribe();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    };
+
+    const subscription = checkUser();
+    
+    return () => {
+      if (subscription && typeof subscription.then === 'function') {
+        subscription.then(cleanup => {
+          if (cleanup) cleanup();
+        });
+      }
+    };
+  }, [navigate, toast, fetchChats]);
+
+  // Refetch chats when returning to this page
+  useEffect(() => {
+    if (currentUser && location.pathname === '/chat') {
+      console.log('Returned to chat list, refetching...');
+      fetchChats(currentUser.id);
     }
-  };
+  }, [location.pathname, currentUser, fetchChats]);
 
   const filteredChats = chats.filter(chat =>
     chat.other_user?.full_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -191,19 +276,37 @@ const Chat = () => {
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                           />
                         )}
+                        {/* Unread Badge */}
+                        {chat.unread_count > 0 && (
+                          <div className="absolute -top-1 -right-1 z-20 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
+                            {chat.unread_count > 9 ? '9+' : chat.unread_count}
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          <h3 className={`text-sm font-medium truncate ${
+                            chat.unread_count > 0 
+                              ? 'text-gray-900 dark:text-white font-bold' 
+                              : 'text-gray-900 dark:text-white'
+                          }`}>
                             {chat.other_user?.full_name || 'Unknown User'}
                           </h3>
                           {chat.last_message_time && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className={`text-xs ${
+                              chat.unread_count > 0 
+                                ? 'text-blue-600 dark:text-blue-400 font-semibold' 
+                                : 'text-gray-500 dark:text-gray-400'
+                            }`}>
                               {formatTime(chat.last_message_time)}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        <p className={`text-sm truncate ${
+                          chat.unread_count > 0 
+                            ? 'text-gray-900 dark:text-white font-semibold' 
+                            : 'text-gray-500 dark:text-gray-400'
+                        }`}>
                           {chat.last_message || 'No messages yet'}
                         </p>
                       </div>

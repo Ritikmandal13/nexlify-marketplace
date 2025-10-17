@@ -6,6 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, MapPin, Star, Heart, MessageCircle, Share, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import ReportButton from '@/components/ReportButton';
+import { StarRatingDisplay } from '@/components/ui/star-rating';
+import { ReviewCard } from '@/components/ReviewCard';
+import { AddReviewDialog } from '@/components/AddReviewDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +48,57 @@ const ListingDetail = () => {
   const [isOwner, setIsOwner] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [reviews, setReviews] = useState<{ rating: number }[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+
+  const fetchReviews = async () => {
+    if (!id) return;
+    
+    try {
+      const { data: reviewData, error } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          rating,
+          review_text,
+          is_verified_purchase,
+          created_at,
+          reviewer_id,
+          profiles!reviews_reviewer_id_fkey (
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('listing_id', id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedReviews = (reviewData || []).map((review: any) => ({
+        id: review.id,
+        reviewer_id: review.reviewer_id,
+        reviewer_name: review.profiles?.full_name || 'Anonymous',
+        reviewer_avatar: review.profiles?.avatar_url,
+        rating: review.rating,
+        review_text: review.review_text,
+        is_verified_purchase: review.is_verified_purchase,
+        created_at: review.created_at,
+      }));
+
+      setReviews(formattedReviews);
+      setReviewCount(formattedReviews.length);
+      
+      if (formattedReviews.length > 0) {
+        const avg = formattedReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / formattedReviews.length;
+        setAverageRating(Number(avg.toFixed(1)));
+      } else {
+        setAverageRating(0);
+      }
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -66,18 +120,6 @@ const ListingDetail = () => {
       setIsLoading(false);
     };
     fetchListing();
-    // Fetch seller reviews
-    const fetchReviews = async () => {
-      if (!id) return;
-      // Wait for listing to load
-      const { data: listingData } = await supabase.from('listings').select('seller_id').eq('id', id).single();
-      if (!listingData) return;
-      const { data: reviewData } = await supabase
-        .from('reviews')
-        .select('rating')
-        .eq('seller_id', listingData.seller_id);
-      setReviews(reviewData || []);
-    };
     fetchReviews();
   }, [id]);
 
@@ -214,9 +256,6 @@ const ListingDetail = () => {
     }
   };
 
-  // Calculate average rating and review count
-  const reviewCount = reviews.length;
-  const averageRating = reviewCount > 0 ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewCount).toFixed(1) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
@@ -331,18 +370,24 @@ const ListingDetail = () => {
                       )}
                       <div className="ml-3">
                         <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Star size={14} className="text-yellow-400 fill-current mr-1" />
-                          {averageRating ? (
-                            <>
-                              {averageRating} ({reviewCount} review{reviewCount !== 1 ? 's' : ''})
-                            </>
-                          ) : (
-                            <>No reviews yet</>
-                          )}
-                        </div>
+                        {averageRating > 0 ? (
+                          <StarRatingDisplay
+                            rating={averageRating}
+                            reviewCount={reviewCount}
+                            size="sm"
+                          />
+                        ) : (
+                          <div className="text-xs text-gray-500">No reviews yet</div>
+                        )}
                       </div>
                     </div>
+                    {!isOwner && (
+                      <ReportButton
+                        type="user"
+                        targetId={listing.seller_id}
+                        targetName={listing.seller_name || 'Unknown'}
+                      />
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -400,6 +445,14 @@ const ListingDetail = () => {
                         Share
                       </Button>
                     </div>
+                    <div className="mt-2">
+                      <ReportButton
+                        type="listing"
+                        targetId={listing.id}
+                        targetName={listing.title}
+                        className="w-full"
+                      />
+                    </div>
                   </>
                 )}
               </div>
@@ -408,6 +461,70 @@ const ListingDetail = () => {
                 Posted {new Date(listing.created_at).toLocaleDateString()}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Reviews Section */}
+        {listing && (
+          <div className="max-w-4xl mx-auto px-4 mt-12 mb-20">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      Customer Reviews
+                    </h2>
+                    {averageRating > 0 && (
+                      <div className="mt-2">
+                        <StarRatingDisplay
+                          rating={averageRating}
+                          reviewCount={reviewCount}
+                          size="lg"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {!isOwner && (
+                    <AddReviewDialog
+                      listingId={listing.id}
+                      sellerId={listing.seller_id}
+                      onReviewAdded={fetchReviews}
+                    />
+                  )}
+                </div>
+
+                {reviews.length > 0 ? (
+                  <div className="space-y-4">
+                    {reviews.map((review) => (
+                      <ReviewCard key={review.id} review={review} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg">
+                    <Star size={48} className="mx-auto text-gray-300 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No reviews yet
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      Be the first to review this item!
+                    </p>
+                    {!isOwner && (
+                      <AddReviewDialog
+                        listingId={listing.id}
+                        sellerId={listing.seller_id}
+                        onReviewAdded={fetchReviews}
+                        trigger={
+                          <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                            <Star size={16} className="mr-2" />
+                            Write the First Review
+                          </Button>
+                        }
+                      />
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

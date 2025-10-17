@@ -111,7 +111,7 @@ const SignUp = () => {
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
           <CardDescription className="text-center">
-            Join Nexlify to start buying and selling locally
+            Join SmartThrift to start buying and selling locally
           </CardDescription>
         </CardHeader>
         <CardContent>

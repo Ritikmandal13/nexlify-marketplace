@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { ArrowLeft, Camera, MapPin, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { PriceSuggestion } from '@/components/PriceSuggestion';
 import {
   Dialog,
   DialogContent,
@@ -310,6 +311,7 @@ const CreateListing = () => {
         seller_name: user.user_metadata?.full_name || user.email,
         seller_email: user.email,
         seller_avatar_url: userProfile?.avatar_url || null,
+        status: 'active', // ✅ Set status to active
       };
 
       const { error } = await supabase.from('listings').insert(listingData);
@@ -481,6 +483,16 @@ const CreateListing = () => {
                   />
                 </div>
 
+                {/* AI Price Suggestion */}
+                <PriceSuggestion
+                  title={form.watch('title')}
+                  description={form.watch('description')}
+                  category={form.watch('category')}
+                  condition={form.watch('condition')}
+                  currentPrice={form.watch('price')}
+                  onPriceSelect={(price) => form.setValue('price', price)}
+                />
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -641,7 +653,7 @@ const CreateListing = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Allow Location Access</AlertDialogTitle>
             <AlertDialogDescription>
-              Nexlify needs access to your location to help buyers find your listing. 
+              SmartThrift needs access to your location to help buyers find your listing. 
               This will only be used when you explicitly set a location for your listing.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -10,7 +10,7 @@ const CTASection = () => {
           Ready to Start Trading?
         </h2>
         <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-          Join thousands of students and locals already using Nexlify to buy, sell, and connect with their community.
+          Join thousands of students and locals already using SmartThrift to buy, sell, and connect with their community.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold">

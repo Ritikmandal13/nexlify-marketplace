@@ -134,11 +134,11 @@ function App() {
                 {/* App Icon */}
                 <img
                   src="/icon-192x192.png"
-                  alt="Nexlify"
+                  alt="SmartThrift"
                   className="w-12 h-12 rounded-xl shadow-md border border-gray-100"
                 />
                 <div>
-                  <div className="font-bold text-lg text-gray-900">Install Nexlify</div>
+                  <div className="font-bold text-lg text-gray-900">Install SmartThrift</div>
                   <div className="text-gray-600 text-sm">Get the best experience by installing our app!</div>
                 </div>
                 <button

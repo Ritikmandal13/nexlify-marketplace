@@ -82,7 +82,7 @@ const FeaturedItems = () => {
               <div className="text-center py-12 bg-white rounded-lg shadow-sm border">
                 <div className="max-w-md mx-auto">
                   <div className="text-gray-500 mb-4 text-lg">
-                    <p className="font-medium text-gray-900 mb-2">Welcome to Nexlify!</p>
+                    <p className="font-medium text-gray-900 mb-2">Welcome to SmartThrift!</p>
                     <p className="text-gray-600">Be the first to list an item and start trading with your college community.</p>
                   </div>
                   <Button 

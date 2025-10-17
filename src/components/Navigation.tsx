@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, MapPin, MessageCircle, User, Menu, X, Plus, Home, ShoppingBag, Heart, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import UserProfile from '@/components/auth/UserProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { AuthUser } from '@/types/user';
@@ -15,12 +15,52 @@ const Navigation = () => {
   const [loading, setLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { theme } = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [hasPendingMeetups, setHasPendingMeetups] = useState(false);
   const [pendingMeetupCount, setPendingMeetupCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  // Fetch unread messages count - moved outside to avoid duplication
+  const fetchUnreadMessagesCount = useCallback(async (userId: string) => {
+    try {
+      // First, get all chats where user is a participant
+      const { data: userChats, error: chatsError } = await supabase
+        .from('chats')
+        .select('id')
+        .contains('user_ids', [userId]);
+
+      if (chatsError) throw chatsError;
+
+      if (!userChats || userChats.length === 0) {
+        setUnreadMessagesCount(0);
+        return;
+      }
+
+      // Extract chat IDs
+      const chatIds = userChats.map(chat => chat.id);
+
+      // Count unread messages only from these active chats
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('chat_id', chatIds)
+        .eq('is_read', false)
+        .neq('sender_id', userId);
+      
+      if (!error && count !== null) {
+        setUnreadMessagesCount(count);
+      } else {
+        setUnreadMessagesCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      setUnreadMessagesCount(0);
+    }
+  }, []);
 
   useEffect(() => {
     const getUser = async () => {
@@ -100,13 +140,58 @@ const Navigation = () => {
         setPendingMeetupCount(0);
       }
     };
+
     if (user) {
       fetchPendingMeetups(user.id);
+      fetchUnreadMessagesCount(user.id);
+
+      // Subscribe to real-time updates for messages
+      const messagesSubscription = supabase
+        .channel('nav-messages-channel')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'messages',
+          },
+          () => {
+            // Add delay to ensure database has updated
+            setTimeout(() => {
+              fetchUnreadMessagesCount(user.id);
+            }, 150);
+          }
+        )
+        .subscribe();
+
+      // Refetch when page becomes visible
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          fetchUnreadMessagesCount(user.id);
+          fetchPendingMeetups(user.id);
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        messagesSubscription.unsubscribe();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     } else {
       setHasPendingMeetups(false);
       setPendingMeetupCount(0);
+      setUnreadMessagesCount(0);
     }
-  }, [user]);
+  }, [user, fetchUnreadMessagesCount]);
+
+  // Refetch unread count when route changes (e.g., navigating from chat detail back to chat list)
+  useEffect(() => {
+    if (user) {
+      // Refetch unread messages whenever route changes
+      fetchUnreadMessagesCount(user.id);
+    }
+  }, [routerLocation.pathname, user, fetchUnreadMessagesCount]);
 
   const handleProfileClick = () => {
     setIsProfileOpen(true);
@@ -134,7 +219,7 @@ const Navigation = () => {
             {/* Logo */}
             <div className="flex items-center flex-shrink-0 z-10">
               <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Nexlify
+                SmartThrift
               </div>
             </div>
             {/* Search Icon (always visible, right of logo) */}
@@ -228,7 +313,14 @@ const Navigation = () => {
                 Sell
               </a>
               <Link to="/chats" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 relative">
-                <MessageCircle size={18} />
+                <div className="relative">
+                  <MessageCircle size={18} />
+                  {unreadMessagesCount > 0 && (
+                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                      {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                    </div>
+                  )}
+                </div>
                 Chat
               </Link>
               <Link to="/meetups" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 relative">
@@ -253,7 +345,7 @@ const Navigation = () => {
                     <Button 
                       className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 dark:from-blue-500 dark:to-purple-500 dark:hover:from-blue-600 dark:hover:to-purple-600"
                     >
-                      Join Nexlify
+                      Join SmartThrift
                     </Button>
                   </Link>
                 </>
@@ -364,7 +456,14 @@ const Navigation = () => {
           <div className="flex-1 flex items-center justify-center" /> {/* Spacer for FAB */}
           <div className="relative flex-1 flex items-center justify-center">
             <Button variant="ghost" size="sm" className="flex flex-col items-center gap-1 flex-1 dark:text-gray-200 dark:hover:bg-gray-700" onClick={() => navigate('/chat') }>
-              <MessageCircle size={20} />
+              <div className="relative">
+                <MessageCircle size={20} />
+                {unreadMessagesCount > 0 && (
+                  <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                    {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                  </div>
+                )}
+              </div>
               <span className="text-xs">Chat</span>
             </Button>
           </div>

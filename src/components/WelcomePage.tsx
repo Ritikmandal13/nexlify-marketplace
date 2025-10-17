@@ -10,7 +10,7 @@ const WelcomePage = () => {
 
   const slides = [
     {
-      title: "Welcome to Nexlify",
+      title: "Welcome to SmartThrift",
       subtitle: "Your Local Campus Marketplace",
       description: "Buy and sell with classmates, neighbors, and your local community. Discover amazing deals just around the corner.",
       icon: <Heart className="text-white" size={48} />,
@@ -65,7 +65,7 @@ const WelcomePage = () => {
       {/* Header */}
       <div className="flex justify-between items-center p-6">
         <div className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-          Nexlify
+          SmartThrift
         </div>
         <Button variant="ghost" onClick={handleGetStarted} className="text-muted-foreground">
           Skip

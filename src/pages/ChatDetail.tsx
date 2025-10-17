@@ -177,51 +177,69 @@ const ChatDetail = () => {
       }
     };
 
-    fetchUserProfile();
+    let subscription: any = null;
 
-    // Subscribe to new messages and is_read updates
-    const subscription = supabase
-      .channel(`chat:${chatId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `chat_id=eq.${chatId}`,
-        },
-        async (payload) => {
-          const newMessage = payload.new as Message;
-          setMessages((prev) => [...prev, newMessage]);
+    const initializeChat = async () => {
+      await fetchUserProfile();
+      
+      // Set up real-time subscription after user is loaded
+      subscription = supabase
+        .channel(`chat-${chatId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `chat_id=eq.${chatId}`,
+          },
+          async (payload) => {
+            console.log('New message received:', payload);
+            const newMessage = payload.new as Message;
+            setMessages((prev) => {
+              // Check if message already exists to prevent duplicates
+              const exists = prev.some(msg => msg.id === newMessage.id);
+              if (exists) return prev;
+              return [...prev, newMessage];
+            });
 
-          // Mark message as read if we're the recipient
-          if (newMessage.sender_id !== currentUser?.id) {
-            await supabase
-              .from('messages')
-              .update({ is_read: true })
-              .eq('id', newMessage.id);
+            // Mark message as read if we're the recipient
+            if (newMessage.sender_id !== currentUser?.id) {
+              await supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMessage.id);
+            }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `chat_id=eq.${chatId}`,
-        },
-        (payload) => {
-          const updatedMessage = payload.new as Message;
-          setMessages((prev) =>
-            prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg))
-          );
-        }
-      )
-      .subscribe();
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `chat_id=eq.${chatId}`,
+          },
+          (payload) => {
+            console.log('Message updated:', payload);
+            const updatedMessage = payload.new as Message;
+            setMessages((prev) =>
+              prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg))
+            );
+          }
+        )
+        .subscribe((status) => {
+          console.log('Chat subscription status:', status);
+        });
+    };
+
+    initializeChat();
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        console.log('Unsubscribing from chat channel');
+        subscription.unsubscribe();
+      }
     };
   }, [chatId, navigate, toast]);
 

@@ -1,4 +1,4 @@
-# Nexlify Marketplace
+# SmartThrift Marketplace
 
 A modern, India-centric marketplace app built with React, Vite, TypeScript, Supabase, and Tailwind CSS. Users can buy and sell locally, manage profiles, and enjoy a PWA experience with offline support.
 
@@ -26,8 +26,8 @@ A modern, India-centric marketplace app built with React, Vite, TypeScript, Supa
 
 ### 1. Clone the Repository
 ```sh
-git clone https://github.com/Ritikmandal13/nexlify-marketplace.git
-cd nexlify-marketplace
+git clone https://github.com/Ritikmandal13/smartthrift-marketplace.git
+cd smartthrift-marketplace
 ```
 
 ### 2. Install Dependencies
