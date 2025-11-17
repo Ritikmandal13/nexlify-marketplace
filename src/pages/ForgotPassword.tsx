@@ -24,7 +24,7 @@ const ForgotPassword = () => {
         title: "Success!",
         description: "Password reset email has been sent. Please check your inbox.",
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",

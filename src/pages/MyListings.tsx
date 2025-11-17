@@ -72,6 +72,15 @@ const MyListings = () => {
                   <Badge className="absolute top-2 left-2 bg-green-500 text-white capitalize">
                     {listing.condition}
                   </Badge>
+                  {listing.status === 'sold' && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-t-lg z-10">
+                      <div className="text-center">
+                        <div className="bg-red-600 text-white font-bold text-xl px-6 py-3 rounded-lg shadow-2xl transform rotate-[-10deg] border-4 border-white">
+                          SOLD OUT
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-2">

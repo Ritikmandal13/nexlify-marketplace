@@ -115,8 +115,12 @@ const FeaturedItems = () => {
                     {item.condition}
                   </Badge>
                   {item.status === 'sold' && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <Badge className="bg-red-500 text-white text-lg">Sold Out</Badge>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10">
+                      <div className="text-center">
+                        <div className="bg-red-600 text-white font-bold text-xl px-6 py-3 rounded-lg shadow-2xl transform rotate-[-10deg] border-4 border-white">
+                          SOLD OUT
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

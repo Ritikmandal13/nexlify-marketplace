@@ -152,9 +152,9 @@ const CreateListing = () => {
         .getPublicUrl(filePath);
 
       return publicUrlData.publicUrl;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading image:', error);
-      throw new Error(error.message || 'Failed to upload image');
+      throw new Error(error instanceof Error ? error.message : 'Failed to upload image');
     }
   };
 
@@ -321,10 +321,10 @@ const CreateListing = () => {
         description: "Your item has been listed successfully.",
       });
       navigate('/marketplace');
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "Error",
-        description: err.message || "Failed to create listing.",
+        description: err instanceof Error ? err.message : "Failed to create listing.",
         variant: "destructive"
       });
     } finally {

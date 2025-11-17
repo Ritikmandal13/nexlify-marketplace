@@ -20,7 +20,7 @@ export interface AuthUser {
   user_metadata: UserMetadata;
   app_metadata?: {
     provider?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   aud?: string;
   created_at?: string;

@@ -51,7 +51,7 @@ const ChatDetail = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [otherUser, setOtherUser] = useState<UserProfile | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -177,7 +177,7 @@ const ChatDetail = () => {
       }
     };
 
-    let subscription: any = null;
+    let subscription: ReturnType<typeof supabase.channel> | null = null;
 
     const initializeChat = async () => {
       await fetchUserProfile();

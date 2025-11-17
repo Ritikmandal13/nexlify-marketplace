@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User as UserIcon, Mail, GraduationCap, Shield, Edit2, Save, X, Image as ImageIcon, Info, Star } from 'lucide-react';
+import { User as UserIcon, Mail, GraduationCap, Shield, Edit2, Save, X, Image as ImageIcon, Info, Star, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
@@ -24,6 +24,8 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
   const [bio, setBio] = useState('');
   const [uploading, setUploading] = useState(false);
   const [upiId, setUpiId] = useState('');
+  const [phone, setPhone] = useState('');
+  const [showPhone, setShowPhone] = useState(true);
   const [totalEarned, setTotalEarned] = useState<number>(0);
   const [userRating, setUserRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -113,6 +115,8 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
                 setUniversity(retryData.university || '');
                 setBio(retryData.bio || '');
                 setUpiId(retryData.upi_id || '');
+                setPhone(retryData.phone || '');
+                setShowPhone(retryData.show_phone !== false);
               }
             } else {
               toast({
@@ -131,12 +135,16 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
             setUniversity(data.university || '');
             setBio(data.bio || '');
             setUpiId(data.upi_id || '');
+            setPhone(data.phone || '');
+            setShowPhone(data.show_phone !== false);
           } else {
             setEditName('');
             setProfilePic('');
             setUniversity('');
             setBio('');
             setUpiId('');
+            setPhone('');
+            setShowPhone(true);
           }
         } else {
           setEditName('');
@@ -144,6 +152,8 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
           setUniversity('');
           setBio('');
           setUpiId('');
+          setPhone('');
+          setShowPhone(true);
         }
       } catch (err) {
         console.error('Unexpected error:', err);
@@ -207,6 +217,8 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
       full_name: editName,
       university,
       bio,
+      phone,
+      show_phone: showPhone,
     };
     const { error } = await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
     if (error) {
@@ -311,6 +323,8 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
         university,
         bio,
         upi_id: upiId,
+        phone,
+        show_phone: showPhone,
       };
       
       console.log('Attempting to update profile with:', updates);
@@ -489,6 +503,32 @@ const UserProfile = ({ isOpen, onClose }: UserProfileProps) => {
                     className="w-full border border-gray-300 rounded px-3 py-2"
                     placeholder="yourname@upi"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+                    <Phone size={16} />
+                    Phone Number (for buyers to call you)
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    placeholder="+91 9876543210"
+                    maxLength={15}
+                  />
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="show-phone"
+                      checked={showPhone}
+                      onChange={e => setShowPhone(e.target.checked)}
+                      className="rounded"
+                    />
+                    <label htmlFor="show-phone" className="text-sm text-gray-600 cursor-pointer">
+                      Show my phone number on my listings (buyers can call me directly)
+                    </label>
+                  </div>
                 </div>
                 <Button
                   onClick={handleCompleteProfileSave}

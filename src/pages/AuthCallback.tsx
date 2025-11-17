@@ -53,7 +53,7 @@ const AuthCallback = () => {
 
         // Redirect to home page
         navigate('/');
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error during email verification:', error);
         toast({
           variant: "destructive",

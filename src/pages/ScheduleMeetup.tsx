@@ -15,6 +15,12 @@ interface Listing {
   title: string;
 }
 
+interface MeetupFormValues {
+  scheduled_time: string;
+  location: string;
+  notes: string;
+}
+
 const ScheduleMeetup = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -60,7 +66,7 @@ const ScheduleMeetup = () => {
     fetchData();
   }, [preselectedListingId]);
 
-  const onSubmit = async (values: any) => {
+  const onSubmit = async (values: MeetupFormValues) => {
     if (!userId || !listing) {
       toast({ title: 'Authentication Required', description: 'You must be signed in and have a valid listing to schedule a meetup.', variant: 'destructive' });
       return;

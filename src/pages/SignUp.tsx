@@ -51,11 +51,11 @@ const SignUp = () => {
           duration: 10000, // Show for 10 seconds
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to create account",
+        description: error instanceof Error ? error.message : "Failed to create account",
       });
     } finally {
       setLoading(false);

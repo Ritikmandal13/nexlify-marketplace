@@ -50,7 +50,7 @@ function App() {
   // Memoize isStandalone function
   const isStandalone = useCallback(() => {
     return window.matchMedia('(display-mode: standalone)').matches || 
-           (window.navigator as any).standalone === true;
+           ('standalone' in window.navigator && (window.navigator as { standalone?: boolean }).standalone === true);
   }, []);
 
   // Memoize handleBeforeInstallPrompt

@@ -34,6 +34,13 @@ interface Listing {
   longitude?: number;
 }
 
+interface MeetupFormValues {
+  listing_id: string;
+  scheduled_time: string;
+  location: string;
+  notes: string;
+}
+
 interface Meetup {
   id: string;
   listing_id: string;
@@ -168,7 +175,7 @@ const MeetupScheduler = () => {
   }, []);
 
   // Handle form submit
-  const onSubmit = async (values: any) => {
+  const onSubmit = async (values: MeetupFormValues) => {
     if (!userId) return;
     // Get the selected listing to find seller_id
     const selectedListing = listings.find(l => l.id === values.listing_id);

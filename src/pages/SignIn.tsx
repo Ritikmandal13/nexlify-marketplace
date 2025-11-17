@@ -39,11 +39,11 @@ const SignIn = () => {
       } else {
         navigate('/');
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to sign in",
+        description: error instanceof Error ? error.message : "Failed to sign in",
       });
     } finally {
       setLoading(false);

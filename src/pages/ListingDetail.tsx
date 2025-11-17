@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, MapPin, Star, Heart, MessageCircle, Share, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, Heart, MessageCircle, Share, Edit, Trash2, Phone, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 import ReportButton from '@/components/ReportButton';
 import { StarRatingDisplay } from '@/components/ui/star-rating';
 import { ReviewCard } from '@/components/ReviewCard';
 import { AddReviewDialog } from '@/components/AddReviewDialog';
+import { SoldOverlay } from '@/components/SoldBadge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,30 @@ interface Listing {
   status?: string;
 }
 
+interface ReviewData {
+  id: string;
+  reviewer_id: string;
+  rating: number;
+  review_text: string;
+  is_verified_purchase: boolean;
+  created_at: string;
+  profiles?: {
+    full_name?: string;
+    avatar_url?: string;
+  };
+}
+
+interface FormattedReview {
+  id: string;
+  reviewer_id: string;
+  reviewer_name: string;
+  reviewer_avatar?: string;
+  rating: number;
+  review_text: string;
+  is_verified_purchase: boolean;
+  created_at: string;
+}
+
 const ListingDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -51,6 +76,8 @@ const ListingDetail = () => {
   const [reviews, setReviews] = useState<any[]>([]);
   const [averageRating, setAverageRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [sellerPhone, setSellerPhone] = useState<string | null>(null);
+  const [showSellerPhone, setShowSellerPhone] = useState(false);
 
   const fetchReviews = async () => {
     if (!id) return;
@@ -75,7 +102,7 @@ const ListingDetail = () => {
 
       if (error) throw error;
 
-      const formattedReviews = (reviewData || []).map((review: any) => ({
+      const formattedReviews = (reviewData as ReviewData[] || []).map((review) => ({
         id: review.id,
         reviewer_id: review.reviewer_id,
         reviewer_name: review.profiles?.full_name || 'Anonymous',
@@ -90,7 +117,7 @@ const ListingDetail = () => {
       setReviewCount(formattedReviews.length);
       
       if (formattedReviews.length > 0) {
-        const avg = formattedReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / formattedReviews.length;
+        const avg = formattedReviews.reduce((sum: number, r) => sum + r.rating, 0) / formattedReviews.length;
         setAverageRating(Number(avg.toFixed(1)));
       } else {
         setAverageRating(0);
@@ -116,6 +143,18 @@ const ListingDetail = () => {
         // Check if current user is the owner
         const { data: { user } } = await supabase.auth.getUser();
         setIsOwner(user?.id === data.seller_id);
+        
+        // Fetch seller phone if they opted to show it
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('phone, show_phone')
+          .eq('id', data.seller_id)
+          .single();
+        
+        if (profileData && profileData.show_phone && profileData.phone) {
+          setSellerPhone(profileData.phone);
+          setShowSellerPhone(true);
+        }
       }
       setIsLoading(false);
     };
@@ -166,45 +205,95 @@ const ListingDetail = () => {
       });
       return;
     }
-    // Check if a chat already exists between these two users for this product
-    const { data: existingChats, error } = await supabase
-      .from('chats')
-      .select('*')
-      .contains('user_ids', [user.id, listing.seller_id])
-      .eq('product_id', listing.id);
-    let chatId;
-    if (existingChats && existingChats.length > 0) {
-      chatId = existingChats[0].id;
-    } else {
-      // Create a new chat with product context
-      const { data: newChat, error: chatError } = await supabase
+
+    try {
+      // Check if a chat already exists between these two users for this product
+      // Use RPC function for proper array comparison
+      const { data: existingChats, error: searchError } = await supabase
         .from('chats')
-        .insert({ 
-          user_ids: [user.id, listing.seller_id],
-          product_id: listing.id
-        })
-        .select()
-        .single();
-      if (chatError || !newChat) {
+        .select('*')
+        .eq('product_id', listing.id)
+        .contains('user_ids', [user.id])
+        .contains('user_ids', [listing.seller_id]);
+
+      if (searchError) {
+        console.error('Error searching for existing chat:', searchError);
+      }
+
+      let chatId;
+
+      // Filter to ensure EXACTLY these two users (not more)
+      const exactMatch = existingChats?.find(
+        chat => chat.user_ids.length === 2 && 
+        chat.user_ids.includes(user.id) && 
+        chat.user_ids.includes(listing.seller_id)
+      );
+
+      if (exactMatch) {
+        console.log('Found existing chat:', exactMatch.id);
+        chatId = exactMatch.id;
+      } else {
+        console.log('Creating new chat...');
+        // Create a new chat with product context
+        const { data: newChat, error: chatError } = await supabase
+          .from('chats')
+          .insert({ 
+            user_ids: [user.id, listing.seller_id],
+            product_id: listing.id
+          })
+          .select()
+          .single();
+
+        if (chatError) {
+          console.error('Error creating chat:', chatError);
+          // Check if it's a uniqueness violation (chat was just created by another request)
+          if (chatError.code === '23505') {
+            // Try to fetch the chat again
+            const { data: retryChats } = await supabase
+              .from('chats')
+              .select('*')
+              .eq('product_id', listing.id)
+              .contains('user_ids', [user.id])
+              .contains('user_ids', [listing.seller_id]);
+            
+            const retryMatch = retryChats?.find(
+              chat => chat.user_ids.length === 2 && 
+              chat.user_ids.includes(user.id) && 
+              chat.user_ids.includes(listing.seller_id)
+            );
+
+            if (retryMatch) {
+              chatId = retryMatch.id;
+            } else {
+              throw new Error('Could not create or find chat');
+            }
+          } else {
+            throw chatError;
+          }
+        } else if (newChat) {
+          chatId = newChat.id;
+        }
+      }
+
+      // Only navigate if chatId is valid
+      if (!chatId) {
         toast({
           title: 'Error',
-          description: 'Could not start chat.',
+          description: 'Could not find or create chat.',
           variant: 'destructive',
         });
         return;
       }
-      chatId = newChat.id;
-    }
-    // Only navigate if chatId is valid
-    if (!chatId) {
+
+      navigate(`/chat/${chatId}`);
+    } catch (error) {
+      console.error('Chat error:', error);
       toast({
         title: 'Error',
-        description: 'Could not find or create chat.',
+        description: error instanceof Error ? error.message : 'Could not start chat.',
         variant: 'destructive',
       });
-      return;
     }
-    navigate(`/chat/${chatId}`);
   };
 
   const handleAddToFavorites = () => {
@@ -212,6 +301,64 @@ const ListingDetail = () => {
       title: "Added to favorites",
       description: "This item has been saved to your favorites.",
     });
+  };
+
+  const handleMarkAsSold = async () => {
+    if (!listing) return;
+
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .update({ status: 'sold' })
+        .eq('id', listing.id);
+
+      if (error) {
+        console.error('Error marking as sold:', error);
+        throw error;
+      }
+
+      // Update local state
+      setListing({ ...listing, status: 'sold' });
+
+      toast({
+        title: "Listing Marked as Sold",
+        description: "Your item has been marked as sold. Buyers will see it's no longer available.",
+      });
+    } catch (error) {
+      console.error('Mark as sold error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to mark listing as sold.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkAsActive = async () => {
+    if (!listing) return;
+
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .update({ status: 'active' })
+        .eq('id', listing.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setListing({ ...listing, status: 'active' });
+
+      toast({
+        title: "Listing Reactivated",
+        description: "Your item is now active again.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reactivate listing.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -247,7 +394,7 @@ const ListingDetail = () => {
         description: "Your listing and related chats have been deleted.",
       });
       navigate('/marketplace');
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
         description: error.message || "Failed to delete listing.",
@@ -278,6 +425,7 @@ const ListingDetail = () => {
                   alt={listing.title}
                   className="w-full h-full object-cover"
                 />
+                {listing.status === 'sold' && <SoldOverlay />}
               </div>
               {listing.images.length > 1 && (
                 <div className="grid grid-cols-4 gap-2">
@@ -395,42 +543,87 @@ const ListingDetail = () => {
               {/* Action Buttons */}
               <div className="space-y-4">
                 {isOwner ? (
-                  <div className="flex space-x-3">
-                    <Button
-                      onClick={() => navigate(`/edit-listing/${listing.id}`)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      size="lg"
-                    >
-                      <Edit size={16} className="mr-2" />
-                      Edit Listing
-                    </Button>
-                    <Button
-                      onClick={() => setShowDeleteDialog(true)}
-                      variant="destructive"
-                      className="flex-1"
-                      size="lg"
-                    >
-                      <Trash2 size={16} className="mr-2" />
-                      Delete Listing
-                    </Button>
+                  <div className="space-y-3">
+                    {listing.status === 'sold' ? (
+                      <Button
+                        onClick={handleMarkAsActive}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                        size="lg"
+                      >
+                        <CheckCircle2 size={16} className="mr-2" />
+                        Mark as Available Again
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleMarkAsSold}
+                        className="w-full bg-orange-600 hover:bg-orange-700"
+                        size="lg"
+                      >
+                        <CheckCircle2 size={16} className="mr-2" />
+                        Mark as Sold
+                      </Button>
+                    )}
+                    <div className="flex space-x-3">
+                      <Button
+                        onClick={() => navigate(`/edit-listing/${listing.id}`)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                        size="lg"
+                      >
+                        <Edit size={16} className="mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        onClick={() => setShowDeleteDialog(true)}
+                        variant="destructive"
+                        className="flex-1"
+                        size="lg"
+                      >
+                        <Trash2 size={16} className="mr-2" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <>
-                    <Button 
-                      onClick={handleMessageSeller} 
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                      size="lg"
-                    >
-                      <MessageCircle size={16} className="mr-2" />
-                      Message Seller
-                    </Button>
-                    <Button
-                      onClick={() => navigate(`/meetups/schedule?listingId=${listing.id}`)}
-                      className="w-full bg-green-600 hover:bg-green-700 mt-2"
-                      size="lg"
-                    >
-                      🤝 Schedule Meetup
-                    </Button>
+                    {listing.status === 'sold' ? (
+                      <div className="p-6 bg-red-50 border-2 border-red-200 rounded-lg text-center">
+                        <CheckCircle2 size={48} className="mx-auto mb-3 text-red-600" />
+                        <h3 className="text-xl font-bold text-red-900 mb-2">This Item Has Been Sold</h3>
+                        <p className="text-red-700 text-sm">
+                          This listing is no longer available for purchase.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={handleMessageSeller} 
+                            className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            size="lg"
+                          >
+                            <MessageCircle size={16} className="mr-2" />
+                            Message
+                          </Button>
+                          {showSellerPhone && sellerPhone && (
+                            <Button
+                              onClick={() => window.location.href = `tel:${sellerPhone}`}
+                              className="flex-1 bg-green-600 hover:bg-green-700"
+                              size="lg"
+                            >
+                              <Phone size={16} className="mr-2" />
+                              Call Seller
+                            </Button>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => navigate(`/meetups/schedule?listingId=${listing.id}`)}
+                          className="w-full bg-purple-600 hover:bg-purple-700"
+                          size="lg"
+                        >
+                          🤝 Schedule Meetup
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex space-x-3">
                       <Button
                         onClick={handleAddToFavorites}

@@ -89,11 +89,11 @@ export const AddReviewDialog: React.FC<AddReviewDialogProps> = ({
       if (onReviewAdded) {
         onReviewAdded();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error submitting review:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to submit review. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to submit review. Please try again.',
         variant: 'destructive',
       });
     } finally {

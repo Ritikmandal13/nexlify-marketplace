@@ -168,7 +168,7 @@ const EditListing = () => {
         description: "Your listing has been successfully updated.",
       });
       navigate(`/listing/${listing.id}`);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
         description: error.message || "Failed to update listing.",
