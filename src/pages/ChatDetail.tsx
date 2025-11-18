@@ -63,6 +63,55 @@ const ChatDetail = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Mark messages as read when component is visible
+  const markMessagesAsRead = async (userId: string) => {
+    if (!chatId) return;
+    
+    try {
+      console.log(`ChatDetail: Checking for unread messages in chat ${chatId}...`);
+      
+      const { data: unreadMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('chat_id', chatId)
+        .eq('is_read', false)
+        .neq('sender_id', userId);
+
+      if (fetchError) {
+        console.error('Error fetching unread messages:', fetchError);
+        return;
+      }
+
+      if (unreadMessages && unreadMessages.length > 0) {
+        console.log(`ChatDetail: Found ${unreadMessages.length} unread messages, marking as read...`);
+        
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ is_read: true })
+          .in('id', unreadMessages.map((msg) => msg.id));
+        
+        if (updateError) {
+          console.error('Error updating messages:', updateError);
+        } else {
+          console.log(`ChatDetail: Successfully marked ${unreadMessages.length} messages as read`);
+          
+          // Update local state to reflect read status immediately
+          setMessages(prev => 
+            prev.map(msg => 
+              unreadMessages.some(um => um.id === msg.id) 
+                ? { ...msg, is_read: true } 
+                : msg
+            )
+          );
+        }
+      } else {
+        console.log('ChatDetail: No unread messages found');
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchUserProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -164,17 +213,8 @@ const ChatDetail = () => {
         setMessages(Array.isArray(messagesData) ? messagesData : []);
       }
 
-      // Mark unread messages as read
-      const unreadMessages = messagesData?.filter(
-        (msg) => !msg.is_read && msg.sender_id !== user.id
-      );
-
-      if (unreadMessages?.length) {
-        await supabase
-          .from('messages')
-          .update({ is_read: true })
-          .in('id', unreadMessages.map((msg) => msg.id));
-      }
+      // Mark unread messages as read immediately
+      await markMessagesAsRead(user.id);
     };
 
     let subscription: ReturnType<typeof supabase.channel> | null = null;
@@ -194,7 +234,7 @@ const ChatDetail = () => {
             filter: `chat_id=eq.${chatId}`,
           },
           async (payload) => {
-            console.log('New message received:', payload);
+            console.log('ChatDetail: New message received:', payload);
             const newMessage = payload.new as Message;
             setMessages((prev) => {
               // Check if message already exists to prevent duplicates
@@ -203,12 +243,25 @@ const ChatDetail = () => {
               return [...prev, newMessage];
             });
 
-            // Mark message as read if we're the recipient
-            if (newMessage.sender_id !== currentUser?.id) {
-              await supabase
+            // Mark message as read immediately if we're the recipient and page is visible
+            if (newMessage.sender_id !== currentUser?.id && !document.hidden) {
+              console.log(`ChatDetail: Marking new message ${newMessage.id} as read...`);
+              const { error } = await supabase
                 .from('messages')
                 .update({ is_read: true })
                 .eq('id', newMessage.id);
+              
+              if (error) {
+                console.error('Error marking new message as read:', error);
+              } else {
+                console.log(`ChatDetail: Successfully marked new message ${newMessage.id} as read`);
+                // Update local state
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === newMessage.id ? { ...msg, is_read: true } : msg
+                  )
+                );
+              }
             }
           }
         )
@@ -235,11 +288,22 @@ const ChatDetail = () => {
 
     initializeChat();
 
+    // Mark messages as read when page becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden && currentUser) {
+        console.log('Page visible, marking messages as read...');
+        markMessagesAsRead(currentUser.id);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       if (subscription) {
         console.log('Unsubscribing from chat channel');
         subscription.unsubscribe();
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [chatId, navigate, toast]);
 
@@ -379,6 +443,70 @@ const ChatDetail = () => {
                           message.sender_id === currentUser.id
                             ? 'bg-blue-600 text-white rounded-br-md ml-8'
                             : 'bg-white dark:bg-black text-gray-900 dark:text-white rounded-bl-md mr-8 border dark:border-gray-800'
+                        }`}
+                      >
+                        {message.content}
+                        <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-60 dark:text-gray-300">
+                          <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          {message.sender_id === currentUser.id && (
+                            message.is_read ? (
+                              <CheckCheck size={16} className="text-green-400" />
+                            ) : (
+                              <Check size={16} className="text-gray-300" />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-400">
+                  No messages yet. Start the conversation!
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+          {/* Fixed Message Input Bar */}
+          <div className="fixed bottom-16 left-0 right-0 z-30 bg-white dark:bg-black px-2 py-2 border-t border-gray-200 dark:border-gray-800 max-w-2xl mx-auto">
+            <form onSubmit={handleSendMessage} className="flex gap-2 bg-white dark:bg-black rounded-xl shadow-md p-2">
+              <Input
+                type="text"
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="flex-1 border-none focus:ring-0 focus:outline-none bg-transparent dark:text-white dark:placeholder-gray-400"
+                autoFocus
+              />
+              <Button type="submit" size="icon" disabled={!newMessage.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Send className="h-5 w-5" />
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this chat and all its messages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteChat} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
+
+export default ChatDetail; 
                         }`}
                       >
                         {message.content}

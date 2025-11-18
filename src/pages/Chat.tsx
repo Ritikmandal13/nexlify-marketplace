@@ -35,8 +35,15 @@ const Chat = () => {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
-  const fetchChats = useCallback(async (userId: string) => {
+  const fetchChats = useCallback(async (userId: string, isInitialLoad = false) => {
     try {
+      console.log('Chat: Fetching chats...');
+      
+      // Only show loading skeleton on initial load, not on refreshes
+      if (isInitialLoad) {
+        setLoading(true);
+      }
+      
       // Fetch all chats where the current user is a participant
       const { data: chatData, error: chatError } = await supabase
         .from('chats')
@@ -74,6 +81,8 @@ const Chat = () => {
             console.error('Error counting unread messages:', countError);
           }
 
+          console.log(`Chat ${chat.id}: ${unreadCount || 0} unread messages`);
+
           return {
             ...chat,
             other_user: userData,
@@ -82,11 +91,14 @@ const Chat = () => {
         })
       );
 
+      console.log(`Chat: Fetched ${chatsWithUsers.length} chats with unread counts`);
       setChats(chatsWithUsers);
     } catch (error) {
       console.error('Error fetching chats:', error);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -103,7 +115,8 @@ const Chat = () => {
         return;
       }
       setCurrentUser(user);
-      fetchChats(user.id);
+      // Initial load - show skeleton
+      fetchChats(user.id, true);
 
       // Subscribe to real-time updates for messages
       const messagesSubscription = supabase
@@ -117,10 +130,8 @@ const Chat = () => {
           },
           (payload) => {
             console.log('Message change detected:', payload);
-            // Small delay to ensure database has updated
-            setTimeout(() => {
-              fetchChats(user.id);
-            }, 100);
+            // Background refresh - don't show skeleton
+            fetchChats(user.id, false);
           }
         )
         .subscribe();
@@ -137,8 +148,8 @@ const Chat = () => {
           },
           (payload) => {
             console.log('Chat updated:', payload);
-            // Refetch chats to get latest last_message
-            fetchChats(user.id);
+            // Background refresh - don't show skeleton
+            fetchChats(user.id, false);
           }
         )
         .subscribe();
@@ -146,17 +157,27 @@ const Chat = () => {
       // Refetch when page becomes visible (user returns from chat detail)
       const handleVisibilityChange = () => {
         if (!document.hidden) {
-          console.log('Page visible, refetching chats...');
-          fetchChats(user.id);
+          console.log('Page visible, refetching chats immediately...');
+          // Background refresh - don't show skeleton
+          fetchChats(user.id, false);
         }
       };
 
+      // Refetch when user focuses on the window
+      const handleFocus = () => {
+        console.log('Window focused, refetching chats...');
+        // Background refresh - don't show skeleton
+        fetchChats(user.id, false);
+      };
+
       document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleFocus);
 
       return () => {
         messagesSubscription.unsubscribe();
         chatsSubscription.unsubscribe();
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleFocus);
       };
     };
 
@@ -171,11 +192,12 @@ const Chat = () => {
     };
   }, [navigate, toast, fetchChats]);
 
-  // Refetch chats when returning to this page
+  // Refetch chats when returning to this page - immediate refresh
   useEffect(() => {
     if (currentUser && location.pathname === '/chat') {
-      console.log('Returned to chat list, refetching...');
-      fetchChats(currentUser.id);
+      console.log('Returned to chat list, refetching immediately...');
+      // Background refresh - don't show skeleton or clear existing chats
+      fetchChats(currentUser.id, false);
     }
   }, [location.pathname, currentUser, fetchChats]);
 
@@ -214,14 +236,33 @@ const Chat = () => {
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Messages</h1>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-              >
-                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (currentUser) {
+                      console.log('Manual refresh triggered');
+                      fetchChats(currentUser.id, false);
+                      toast({
+                        title: "Refreshing...",
+                        description: "Updating chat list",
+                      });
+                    }
+                  }}
+                  className="text-blue-600 dark:text-blue-400"
+                >
+                  🔄 Refresh
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                </Button>
+              </div>
             </div>
 
             {/* Search */}
@@ -256,6 +297,12 @@ const Chat = () => {
                   tabIndex={0}
                 >
                   <CardContent className="p-4" onClick={async () => {
+                    // Optimistically clear the unread badge for immediate feedback
+                    setChats(prevChats => 
+                      prevChats.map(c => 
+                        c.id === chat.id ? { ...c, unread_count: 0 } : c
+                      )
+                    );
                     navigate(`/chat/${chat.id}`);
                   }}>
                     <div className="flex items-center space-x-4">
@@ -276,6 +323,53 @@ const Chat = () => {
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                           />
                         )}
+                        {/* Unread Badge */}
+                        {chat.unread_count > 0 && (
+                          <div className="absolute -top-1 -right-1 z-20 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
+                            {chat.unread_count > 9 ? '9+' : chat.unread_count}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h3 className={`text-sm font-medium truncate ${
+                            chat.unread_count > 0 
+                              ? 'text-gray-900 dark:text-white font-bold' 
+                              : 'text-gray-900 dark:text-white'
+                          }`}>
+                            {chat.other_user?.full_name || 'Unknown User'}
+                          </h3>
+                          {chat.last_message_time && (
+                            <span className={`text-xs ${
+                              chat.unread_count > 0 
+                                ? 'text-blue-600 dark:text-blue-400 font-semibold' 
+                                : 'text-gray-500 dark:text-gray-400'
+                            }`}>
+                              {formatTime(chat.last_message_time)}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-sm truncate ${
+                          chat.unread_count > 0 
+                            ? 'text-gray-900 dark:text-white font-semibold' 
+                            : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {chat.last_message || 'No messages yet'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default Chat; 
                         {/* Unread Badge */}
                         {chat.unread_count > 0 && (
                           <div className="absolute -top-1 -right-1 z-20 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">

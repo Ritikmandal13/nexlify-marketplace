@@ -499,43 +499,34 @@ const ListingDetail = () => {
               <Card className="mb-6">
                 <CardContent className="p-4">
                   <h3 className="text-lg font-semibold mb-3">Seller Information</h3>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      {listing.seller_avatar_url ? (
-                        <img
-                          src={
-                            listing.seller_avatar_url.startsWith('http')
-                              ? listing.seller_avatar_url
-                              : `https://spjvuhlgitqnthcvnpyb.supabase.co/storage/v1/object/public/avatars/${listing.seller_avatar_url}`
-                          }
-                          alt={listing.seller_name}
-                          className="w-12 h-12 rounded-full object-cover"
+                  <div className="flex items-center">
+                    {listing.seller_avatar_url ? (
+                      <img
+                        src={
+                          listing.seller_avatar_url.startsWith('http')
+                            ? listing.seller_avatar_url
+                            : `https://spjvuhlgitqnthcvnpyb.supabase.co/storage/v1/object/public/avatars/${listing.seller_avatar_url}`
+                        }
+                        alt={listing.seller_name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
+                        {(listing.seller_name || 'U').charAt(0)}
+                      </div>
+                    )}
+                    <div className="ml-3">
+                      <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
+                      {averageRating > 0 ? (
+                        <StarRatingDisplay
+                          rating={averageRating}
+                          reviewCount={reviewCount}
+                          size="sm"
                         />
                       ) : (
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-medium">
-                          {(listing.seller_name || 'U').charAt(0)}
-                        </div>
+                        <div className="text-xs text-gray-500">No reviews yet</div>
                       )}
-                      <div className="ml-3">
-                        <div className="font-medium">{listing.seller_name || 'Unknown'}</div>
-                        {averageRating > 0 ? (
-                          <StarRatingDisplay
-                            rating={averageRating}
-                            reviewCount={reviewCount}
-                            size="sm"
-                          />
-                        ) : (
-                          <div className="text-xs text-gray-500">No reviews yet</div>
-                        )}
-                      </div>
                     </div>
-                    {!isOwner && (
-                      <ReportButton
-                        type="user"
-                        targetId={listing.seller_id}
-                        targetName={listing.seller_name || 'Unknown'}
-                      />
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -544,24 +535,14 @@ const ListingDetail = () => {
               <div className="space-y-4">
                 {isOwner ? (
                   <div className="space-y-3">
-                    {listing.status === 'sold' ? (
-                      <Button
-                        onClick={handleMarkAsActive}
-                        className="w-full bg-green-600 hover:bg-green-700"
-                        size="lg"
-                      >
-                        <CheckCircle2 size={16} className="mr-2" />
-                        Mark as Available Again
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handleMarkAsSold}
-                        className="w-full bg-orange-600 hover:bg-orange-700"
-                        size="lg"
-                      >
-                        <CheckCircle2 size={16} className="mr-2" />
-                        Mark as Sold
-                      </Button>
+                    {listing.status === 'sold' && (
+                      <div className="p-6 bg-green-50 border-2 border-green-200 rounded-lg text-center mb-3">
+                        <CheckCircle2 size={48} className="mx-auto mb-3 text-green-600" />
+                        <h3 className="text-xl font-bold text-green-900 mb-2">Item Sold!</h3>
+                        <p className="text-green-700 text-sm">
+                          This item has been successfully sold.
+                        </p>
+                      </div>
                     )}
                     <div className="flex space-x-3">
                       <Button
@@ -677,7 +658,7 @@ const ListingDetail = () => {
                       </div>
                     )}
                   </div>
-                  {!isOwner && (
+                  {!isOwner && listing.status !== 'sold' && (
                     <AddReviewDialog
                       listingId={listing.id}
                       sellerId={listing.seller_id}
@@ -699,9 +680,9 @@ const ListingDetail = () => {
                       No reviews yet
                     </h3>
                     <p className="text-gray-600 mb-4">
-                      Be the first to review this item!
+                      {listing.status === 'sold' ? 'This item has been sold.' : 'Be the first to review this item!'}
                     </p>
-                    {!isOwner && (
+                    {!isOwner && listing.status !== 'sold' && (
                       <AddReviewDialog
                         listingId={listing.id}
                         sellerId={listing.seller_id}

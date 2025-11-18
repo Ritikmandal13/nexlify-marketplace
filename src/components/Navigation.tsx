@@ -27,6 +27,8 @@ const Navigation = () => {
   // Fetch unread messages count - moved outside to avoid duplication
   const fetchUnreadMessagesCount = useCallback(async (userId: string) => {
     try {
+      console.log('Navigation: Fetching unread messages count...');
+      
       // First, get all chats where user is a participant
       const { data: userChats, error: chatsError } = await supabase
         .from('chats')
@@ -36,12 +38,14 @@ const Navigation = () => {
       if (chatsError) throw chatsError;
 
       if (!userChats || userChats.length === 0) {
+        console.log('Navigation: No chats found, setting count to 0');
         setUnreadMessagesCount(0);
         return;
       }
 
       // Extract chat IDs
       const chatIds = userChats.map(chat => chat.id);
+      console.log(`Navigation: Checking ${chatIds.length} chats for unread messages`);
 
       // Count unread messages only from these active chats
       const { count, error } = await supabase
@@ -52,12 +56,14 @@ const Navigation = () => {
         .neq('sender_id', userId);
       
       if (!error && count !== null) {
+        console.log(`Navigation: Found ${count} unread messages`);
         setUnreadMessagesCount(count);
       } else {
+        console.log('Navigation: Error or no count, setting to 0');
         setUnreadMessagesCount(0);
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      console.error('Navigation: Error fetching unread count:', error);
       setUnreadMessagesCount(0);
     }
   }, []);
@@ -156,10 +162,9 @@ const Navigation = () => {
             table: 'messages',
           },
           () => {
-            // Add delay to ensure database has updated
-            setTimeout(() => {
-              fetchUnreadMessagesCount(user.id);
-            }, 150);
+            // Immediate refresh for better responsiveness
+            console.log('Navigation: Message change detected, refreshing unread count...');
+            fetchUnreadMessagesCount(user.id);
           }
         )
         .subscribe();
@@ -499,6 +504,11 @@ const Navigation = () => {
       )}
       {isProfileOpen && <UserProfile isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />}
     </>
+  );
+};
+
+export default Navigation;
+
   );
 };
 
