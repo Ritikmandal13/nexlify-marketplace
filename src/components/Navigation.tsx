@@ -164,7 +164,7 @@ const Navigation = () => {
           () => {
             // Immediate refresh for better responsiveness
             console.log('Navigation: Message change detected, refreshing unread count...');
-            fetchUnreadMessagesCount(user.id);
+              fetchUnreadMessagesCount(user.id);
           }
         )
         .subscribe();
@@ -504,11 +504,6 @@ const Navigation = () => {
       )}
       {isProfileOpen && <UserProfile isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />}
     </>
-  );
-};
-
-export default Navigation;
-
   );
 };
 
