@@ -97,7 +97,7 @@ const Chat = () => {
       console.error('Error fetching chats:', error);
     } finally {
       if (isInitialLoad) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   }, []);
@@ -254,14 +254,14 @@ const Chat = () => {
                 >
                   🔄 Refresh
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleTheme}
-                  className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                >
-                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              >
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              </Button>
               </div>
             </div>
 
@@ -323,53 +323,6 @@ const Chat = () => {
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                           />
                         )}
-                        {/* Unread Badge */}
-                        {chat.unread_count > 0 && (
-                          <div className="absolute -top-1 -right-1 z-20 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
-                            {chat.unread_count > 9 ? '9+' : chat.unread_count}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h3 className={`text-sm font-medium truncate ${
-                            chat.unread_count > 0 
-                              ? 'text-gray-900 dark:text-white font-bold' 
-                              : 'text-gray-900 dark:text-white'
-                          }`}>
-                            {chat.other_user?.full_name || 'Unknown User'}
-                          </h3>
-                          {chat.last_message_time && (
-                            <span className={`text-xs ${
-                              chat.unread_count > 0 
-                                ? 'text-blue-600 dark:text-blue-400 font-semibold' 
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              {formatTime(chat.last_message_time)}
-                            </span>
-                          )}
-                        </div>
-                        <p className={`text-sm truncate ${
-                          chat.unread_count > 0 
-                            ? 'text-gray-900 dark:text-white font-semibold' 
-                            : 'text-gray-500 dark:text-gray-400'
-                        }`}>
-                          {chat.last_message || 'No messages yet'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-};
-
-export default Chat; 
                         {/* Unread Badge */}
                         {chat.unread_count > 0 && (
                           <div className="absolute -top-1 -right-1 z-20 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
